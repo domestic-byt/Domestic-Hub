@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>DomesticHub | Ethiopia's Digital Marketplace</title>
+
+  <meta name="description"
+        content="Discover Ethiopian products and connect with local businesses on DomesticHub.">
+
+  <style>
+    :root {
+      --green: #147d4a;
+      --dark-green: #0c5432;
+      --orange: #f2a900;
+      --background: #f7f8fa;
+      --text: #202522;
+      --muted: #737b76;
+      --white: #ffffff;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--background);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    button, input {
+      font: inherit;
+    }
+
+    .topbar {
+      background: var(--dark-green);
+      color: white;
+      padding: 9px 5%;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    header {
+      background: white;
+      padding: 18px 5%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 24px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid #e9ece9;
+    }
+
+    .logo {
+      color: var(--green);
+      font-size: 25px;
+      font-weight: 800;
+      letter-spacing: -1px;
+    }
+
+    .logo span {
+      color: var(--orange);
+    }
+
+    .search {
+      display: flex;
+      flex: 1;
+      max-width: 530px;
+      min-width: 200px;
+    }
+
+    .search input {
+      width: 100%;
+      min-width: 0;
+      padding: 12px 15px;
+      border: 1px solid #d9dfda;
+      border-radius: 8px 0 0 8px;
+      outline-color: var(--green);
+    }
+
+    .search button {
+      padding: 12px 18px;
+      background: var(--green);
+      color: white;
+      border: none;
+      border-radius: 0 8px 8px 0;
+      cursor: pointer;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .header-actions a:hover {
+      color: var(--green);
+    }
+
+    nav {
+      background: white;
+      padding: 12px 5%;
+      display: flex;
+      gap: 26px;
+      overflow-x: auto;
+      border-bottom: 1px solid #e9ece9;
+      white-space: nowrap;
+      font-size: 14px;
+    }
+
+    nav a:hover {
+      color: var(--green);
+    }
+
+    .container {
+      width: 90%;
+      max-width: 1200px;
+      margin: 28px auto;
+    }
+
+    .hero {
+      background: linear-gradient(115deg, #0c5432, #168653);
+      color: white;
+      border-radius: 16px;
+      padding: 55px 7%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 30px;
+      overflow: hidden;
+    }
+
+    .hero-content {
+      max-width: 600px;
+    }
+
+    .hero-label {
+      color: #ffe09a;
+      font-weight: bold;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+
+    .hero h1 {
+      font-size: clamp(30px, 5vw, 48px);
+      line-height: 1.15;
+      margin: 14px 0;
+    }
+
+    .hero p {
+      color: #e3f3e9;
+      margin-bottom: 25px;
+      max-width: 500px;
+    }
+
+    .button {
+      display: inline-block;
+      padding: 12px 21px;
+      border-radius: 7px;
+      font-weight: bold;
+      background: var(--orange);
+      color: #202522;
+      border: none;
+      cursor: pointer;
+    }
+
+    .hero-icon {
+      font-size: clamp(65px, 12vw, 130px);
+      flex-shrink: 0;
+    }
+
+    .section-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .section-heading h2 {
+      font-size: 23px;
+    }
+
+    .section-heading a {
+      color: var(--green);
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .categories {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 15px;
+    }
+
+    .category {
+      background: white;
+      border-radius: 12px;
+      padding: 22px 8px;
+      text-align: center;
+      border: 1px solid #edf0ed;
+      transition: transform 0.2s;
+    }
+
+    .category:hover {
+      transform: translateY(-4px);
+      border-color: #a6d4b8;
+    }
+
+    .category-icon {
+      display: block;
+      font-size: 33px;
+      margin-bottom: 8px;
+    }
+
+    .category h3 {
+      font-size: 13px;
+    }
+
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .product {
+      background: white;
+      border: 1px solid #e9ece9;
+      border-radius: 12px;
+      overflow: hidden;
+      transition: box-shadow 0.2s;
+    }
+
+    .product:hover {
+      box-shadow: 0 8px 24px #173c2812;
+    }
+
+    .product-image {
+      height: 170px;
+      background: #e9f2eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 65px;
+    }
+
+    .product-info {
+      padding: 16px;
+    }
+
+    .product-category {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .product h3 {
+      font-size: 16px;
+      margin: 5px 0;
+    }
+
+    .product-location {
+      color: var(--muted);
+      font-size: 12px;
+      margin: 5px 0 10px;
+    }
+
+    .price {
+      color: var(--green);
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .add-cart {
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      padding: 10px;
+      background: white;
+      border: 1px solid var(--green);
+      color: var(--green);
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .add-cart:hover {
+      background: var(--green);
+      color: white;
+    }
+
+    .empty-state {
+      grid-column: 1 / -1;
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .benefits {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      margin: 35px 0;
+    }
+
+    .benefit {
+      background: white;
+      padding: 22px;
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    .benefit strong {
+      display: block;
+      margin: 6px 0;
+    }
+
+    .benefit p {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    footer {
+      background: #102d20;
+      color: white;
+      padding: 35px 5%;
+      margin-top: 40px;
+    }
+
+    .footer-content {
+      max-width: 1200px;
+      margin: auto;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    footer p {
+      color: #c7d8cd;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    @media (max-width: 800px) {
+      .categories {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .product-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .hero {
+        padding: 35px 7%;
+      }
+
+      .hero-icon {
+        display: none;
+      }
+
+      header {
+        gap: 14px;
+      }
+
+      .search {
+        order: 3;
+        flex-basis: 100%;
+        max-width: none;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .container {
+        width: 92%;
+      }
+
+      .hero {
+        padding: 30px 22px;
+      }
+
+      .hero h1 {
+        font-size: 30px;
+      }
+
+      .header-actions {
+        gap: 10px;
+      }
+
+      .product-image {
+        height: 130px;
+      }
+
+      .product-info {
+        padding: 12px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="topbar">
+    Discover Ethiopian products and support local businesses.
+  </div>
+
+  <header>
+    <a class="logo" href="#" aria-label="DomesticHub home">
+      Domestic<span>Hub</span>
+    </a>
+
+    <form class="search" id="search-form" role="search">
+      <input
+        type="search"
+        id="search-input"
+        placeholder="Search products and businesses..."
+        aria-label="Search products and businesses"
+      >
+      <button type="submit">Search</button>
+    </form>
+
+    <div class="header-actions">
+      <a href="#products">Products</a>
+      <a href="#cart" id="cart-link">🛒 Cart (<span id="cart-count">0</span>)</a>
+    </div>
+  </header>
+
+  <nav aria-label="Main navigation">
+    <a href="#">Home</a>
+    <a href="#categories">Categories</a>
+    <a href="#products">Explore Products</a>
+    <a href="#benefits">Why DomesticHub?</a>
+  </nav>
+
+  <main>
+    <div class="container">
+
+      <section class="hero">
+        <div class="hero-content">
+          <div class="hero-label">Made in Ethiopia 🇪🇹</div>
+          <h1>Discover Local.<br>Shop with Purpose.</h1>
+          <p>
+            Explore products from Ethiopian producers, discover local
+            businesses, and connect with the people behind the products.
+          </p>
+          <a href="#products" class="button">Explore Products →</a>
+        </div>
+        <div class="hero-icon" aria-hidden="true">🇪🇹</div>
+      </section>
+
+      <section id="categories" style="margin-top: 38px;">
+        <div class="section-heading">
+          <h2>Shop by Category</h2>
+          <a href="#products">Explore all →</a>
+        </div>
+
+        <div class="categories">
+          <a class="category" href="#products" data-category="Coffee">
+            <span class="category-icon">☕</span>
+            <h3>Coffee</h3>
+          </a>
+
+          <a class="category" href="#products" data-category="Food">
+            <span class="category-icon">🌾</span>
+            <h3>Food & Grains</h3>
+          </a>
+
+          <a class="category" href="#products" data-category="Fashion">
+            <span class="category-icon">👗</span>
+            <h3>Fashion</h3>
+          </a>
+
+          <a class="category" href="#products" data-category="Handcrafts">
+            <span class="category-icon">🏺</span>
+            <h3>Handcrafts</h3>
+          </a>
+
+          <a class="category" href="#products" data-category="Home">
+            <span class="category-icon">🪑</span>
+            <h3>Home & Living</h3>
+          </a>
+
+          <a class="category" href="#products" data-category="Other">
+            <span class="category-icon">🛍️</span>
+            <h3>Other Products</h3>
+          </a>
+        </div>
+      </section>
+
+      <section id="products" style="margin-top: 38px;">
+        <div class="section-heading">
+          <h2>Explore Products</h2>
+          <a href="#products" id="show-all">Show all →</a>
+        </div>
+
+        <div class="product-grid" id="product-grid">
+          <div class="empty-state">Loading products...</div>
+        </div>
+      </section>
+
+      <section id="benefits" class="benefits">
+        <div class="benefit">
+          <span style="font-size: 28px;">🇪🇹</span>
+          <strong>Support Local</strong>
+          <p>Discover products from Ethiopian businesses.</p>
+        </div>
+
+        <div class="benefit">
+          <span style="font-size: 28px;">🔎</span>
+          <strong>Discover More</strong>
+          <p>Explore products and find new local producers.</p>
+        </div>
+
+        <div class="benefit">
+          <span style="font-size: 28px;">📱</span>
+          <strong>Mobile Friendly</strong>
+          <p>Browse the marketplace on your phone or computer.</p>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-content">
+      <div>
+        <a class="logo" href="#" style="color: white;">
+          Domestic<span>Hub</span>
+        </a>
+        <p>Connecting Ethiopian businesses with customers.</p>
+      </div>
+
+      <div>
+        <strong>DomesticHub</strong>
+        <p>Discover local. Support local.</p>
+        <p>© <span id="year"></span> DomesticHub</p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    /*
+      Demo products are displayed if the API is unavailable.
+      Replace API_BASE_URL with your real API address when configured.
+    */
+
+    const API_BASE_URL = "";
+
+    const demoProducts = [
+      {
+        id: 1,
+        name: "Sidama Washed Coffee",
+        category: "Coffee",
+        price: 850,
+        location: "Sidama, Ethiopia",
+        emoji: "☕"
+      },
+      {
+        id: 2,
+        name: "Ethiopian Coffee Beans",
+        category: "Coffee",
+        price: 650,
+        location: "Oromia, Ethiopia",
+        emoji: "🫘"
+      },
+      {
+        id: 3,
+        name: "Traditional Woven Basket",
+        category: "Handcrafts",
+        price: 1200,
+        location: "Addis Ababa, Ethiopia",
+        emoji: "🧺"
+      },
+      {
+        id: 4,
+        name: "Traditional Ethiopian Dress",
+        category: "Fashion",
+        price: 2800,
+        location: "Addis Ababa, Ethiopia",
+        emoji: "👗"
+      },
+      {
+        id: 5,
+        name: "Local Honey",
+        category: "Food",
+        price: 500,
+        location: "Amhara, Ethiopia",
+        emoji: "🍯"
+      },
+      {
+        id: 6,
+        name: "Handcrafted Pottery",
+        category: "Handcrafts",
+        price: 900,
+        location: "Ethiopia",
+        emoji: "🏺"
+      },
+      {
+        id: 7,
+        name: "Decorative Coffee Table",
+        category: "Home",
+        price: 4500,
+        location: "Addis Ababa, Ethiopia",
+        emoji: "🪑"
+      },
+      {
+        id: 8,
+        name: "Teff Grain",
+        category: "Food",
+        price: 350,
+        location: "Oromia, Ethiopia",
+        emoji: "🌾"
+      }
+    ];
+
+    let products = [...demoProducts];
+    let cart = [];
+    let currentCategory = "";
+    let currentQuery = "";
+
+    const grid = document.getElementById("product-grid");
+
+    function formatPrice(price) {
+      return Number(price).toLocaleString("en-ET") + " ETB";
+    }
+
+    function renderProducts() {
+      const filtered = products.filter(product => {
+        const categoryMatch = !currentCategory ||
+          product.category.toLowerCase() === currentCategory.toLowerCase();
+
+        const query = currentQuery.toLowerCase();
+
+        const searchMatch = !query ||
+          String(product.name || "").toLowerCase().includes(query) ||
+          String(product.category || "").toLowerCase().includes(query) ||
+          String(product.location || "").toLowerCase().includes(query);
+
+        return categoryMatch && searchMatch;
+      });
+
+      if (filtered.length === 0) {
+        grid.innerHTML =
+          '<div class="empty-state">No matching products found. Try another search.</div>';
+        return;
+      }
+
+      grid.innerHTML = filtered.map(product => `
+        <article class="product">
+          <div class="product-image" aria-hidden="true">
+            ${product.image_url
+              ? `<img src="${escapeHTML(product.image_url)}"
+                      alt="${escapeHTML(product.name)}"
+                      style="width:100%;height:100%;object-fit:cover;">`
+              : (product.emoji || "🛍️")}
+          </div>
+
+          <div class="product-info">
+            <div class="product-category">${escapeHTML(product.category || "Products")}</div>
+            <h3>${escapeHTML(product.name)}</h3>
+            <div class="product-location">📍 ${escapeHTML(product.location || "Ethiopia")}</div>
+            <div class="price">${formatPrice(product.price || 0)}</div>
+            <button class="add-cart" data-id="${escapeHTML(product.id)}">
+              Add to Cart
+            </button>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function escapeHTML(value) {
+      return String(value).replace(/[&<>"']/g, character => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      })[character]);
+    }
+
+    document.getElementById("search-form").addEventListener("submit", event => {
+      event.preventDefault();
+      currentQuery = document.getElementById("search-input").value.trim();
+      currentCategory = "";
+      renderProducts();
+      document.getElementById("products").scrollIntoView({ behavior: "smooth" });
+    });
+
+    document.querySelectorAll("[data-category]").forEach(link => {
+      link.addEventListener("click", () => {
+        currentCategory = link.dataset.category;
+        currentQuery = "";
+        document.getElementById("search-input").value = "";
+        renderProducts();
+      });
+    });
+
+    document.getElementById("show-all").addEventListener("click", event => {
+      event.preventDefault();
+      currentCategory = "";
+      currentQuery = "";
+      document.getElementById("search-input").value = "";
+      renderProducts();
+    });
+
+    grid.addEventListener("click", event => {
+      const button = event.target.closest(".add-cart");
+
+      if (!button) return;
+
+      const product = products.find(item =>
+        String(item.id) === button.dataset.id
+      );
+
+      if (!product) return;
+
+      cart.push(product);
+
+      document.getElementById("cart-count").textContent = cart.length;
+
+      button.textContent = "Added ✓";
+
+      setTimeout(() => {
+        button.textContent = "Add to Cart";
+      }, 1200);
+    });
+
+    document.getElementById("cart-link").addEventListener("click", event => {
+      event.preventDefault();
+
+      if (cart.length === 0) {
+        alert("Your cart is empty.");
+        return;
+      }
+
+      const summary = cart.map(item =>
+        `${item.name} — ${formatPrice(item.price || 0)}`
+      ).join("\n");
+
+      const total = cart.reduce((sum, item) =>
+        sum + Number(item.price || 0), 0
+      );
+
+      alert(
+        "Your demo cart:\n\n" + summary +
+        "\n\nTotal: " + formatPrice(total) +
+        "\n\nCheckout is not connected yet."
+      );
+    });
+
+    async function loadProducts() {
+      if (API_BASE_URL) {
+        try {
+          const response = await fetch(
+            `${API_BASE_URL.replace(/\/$/, "")}/products`
+          );
+
+          if (!response.ok) {
+            throw new Error("Product API returned " + response.status);
+          }
+
+          const data = await response.json();
+
+          const apiProducts = Array.isArray(data)
+            ? data
+            : data.products;
+
+          if (Array.isArray(apiProducts)) {
+            products = apiProducts;
+          }
+        } catch (error) {
+          console.error("Could not load API products:", error);
+          products = [...demoProducts];
+        }
+      }
+
+      renderProducts();
+    }
+
+    document.getElementById("year").textContent =
+      new Date().getFullYear();
+
+    loadProducts();
+  </script>
+
+</body>
+</html>
