@@ -4,6 +4,7 @@ import {
   FuelAdvance,
   Load,
   OperatorMatch,
+  ReturnLoadMatch,
   Shipment,
   TrackingEvent,
   VatInvoice,
@@ -34,6 +35,7 @@ export interface NewInvoiceInput {
 export interface AgentStore {
   createLoad(input: NewLoadInput): Promise<Load>;
   rankMatches(loadId: string): Promise<OperatorMatch[]>;
+  rankReturnLoads(operatorId: string): Promise<ReturnLoadMatch[]>;
   assignShipment(loadId: string, operatorId: string): Promise<Shipment>;
   requestFuelAdvance(input: NewAdvanceInput): Promise<FuelAdvance>;
   getTracking(shipmentId: string): Promise<TrackingEvent[]>;
@@ -51,6 +53,7 @@ export interface ChatMessage {
 export type AgentIntent =
   | 'post_load'
   | 'find_matches'
+  | 'find_return_loads'
   | 'assign_truck'
   | 'request_advance'
   | 'track_shipment'

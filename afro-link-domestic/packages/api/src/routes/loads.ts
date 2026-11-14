@@ -120,4 +120,9 @@ export async function loadRoutes(app: FastifyInstance, store: MarketplaceStore) 
     const { id } = request.params as { id: string };
     return run(reply, () => store.rankMatches(id));
   });
+
+  app.get('/operators/:id/return-loads', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    return run(reply, () => store.rankReturnLoads(id));
+  });
 }

@@ -84,6 +84,9 @@ describe('agent LLM fallback', () => {
     async rankMatches(): Promise<never> {
       throw new Error('not used');
     }
+    async rankReturnLoads(): Promise<never> {
+      throw new Error('not used');
+    }
     async assignShipment(): Promise<never> {
       throw new Error('not used');
     }

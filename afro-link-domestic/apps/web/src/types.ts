@@ -33,6 +33,17 @@ export interface OperatorMatch {
   reasons: string[];
 }
 
+export interface ReturnLoadMatch {
+  loadId: string;
+  origin: string;
+  destination: string;
+  weightTons: number;
+  offeredPriceEtb: number;
+  deadheadKm: number;
+  score: number;
+  reasons: string[];
+}
+
 export interface Shipment {
   id: string;
   loadId: string;

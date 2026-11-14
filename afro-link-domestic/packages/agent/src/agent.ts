@@ -55,6 +55,8 @@ export class DomesticAgent {
           return await this.postLoad(message, ctx);
         case 'find_matches':
           return await this.findMatches(message);
+        case 'find_return_loads':
+          return await this.findReturnLoads(message, ctx);
         case 'assign_truck':
           return await this.assignTruck(message);
         case 'request_advance':
@@ -123,6 +125,39 @@ export class DomesticAgent {
       .join('\n');
     return {
       reply: `Top matches for load ${loadId}:\n${top}\nSay "assign the top match for ${loadId}" to book.`,
+      data: matches,
+    };
+  }
+
+  private async findReturnLoads(message: string, ctx: AgentContext) {
+    const slots = extractSlots(message);
+    const operatorId =
+      slots.ids[0] ??
+      ctx.operatorId ??
+      (await this.store.findLatestShipment())?.operatorId;
+    if (!operatorId) {
+      return {
+        reply:
+          'Which truck? Share the operator id, or finish assigning a shipment first — I will then look for loads near your current location.',
+      };
+    }
+    const matches = await this.store.rankReturnLoads(operatorId);
+    if (matches.length === 0) {
+      return {
+        reply: `No open loads near your current location yet, operator ${operatorId}. I will flag return trips as soon as shippers post one.`,
+        data: [],
+      };
+    }
+    const top = matches[0]!;
+    const list = matches
+      .slice(0, 3)
+      .map(
+        (m) =>
+          `${m.weightTons} t ${m.origin}→${m.destination} for ${m.offeredPriceEtb} ETB (${m.deadheadKm} km deadhead)`,
+      )
+      .join('; ');
+    return {
+      reply: `${matches.length} return load${matches.length === 1 ? '' : 's'} for operator ${operatorId}. Best: load ${top.loadId} — ${list}. Say "assign the top match for ${top.loadId}" to book it.`,
       data: matches,
     };
   }

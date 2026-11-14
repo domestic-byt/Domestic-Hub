@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, getAuthToken, setAuthToken } from './api';
 import { Lang, loadLang, saveLang, STRINGS, Strings } from './i18n';
 import { useVoiceInput } from './useVoiceInput';
-import type { Load, OperatorMatch, TrackingEvent } from './types';
+import type { Load, OperatorMatch, ReturnLoadMatch, TrackingEvent } from './types';
 
 const CITIES = [
   'Addis Ababa',
@@ -292,6 +292,8 @@ function DriverPanel({ t }: { t: Strings }) {
     amountEtb: 5000,
     channel: 'telebirr',
   });
+  const [returnOperator, setReturnOperator] = useState('');
+  const [returnLoads, setReturnLoads] = useState<ReturnLoadMatch[] | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -334,6 +336,16 @@ function DriverPanel({ t }: { t: Strings }) {
         channel: advForm.channel,
       });
       await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function findReturnLoads(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      setReturnLoads(await api.getReturnLoads(returnOperator));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -436,7 +448,42 @@ function DriverPanel({ t }: { t: Strings }) {
         <button type="submit">{t.requestBtn}</button>
       </form>
 
-      <h2>Advances</h2>
+      <h2>{t.returnTrips}</h2>
+      <form onSubmit={findReturnLoads} className="card row">
+        <label>
+          {t.operatorId}
+          <select value={returnOperator} onChange={(e) => setReturnOperator(e.target.value)}>
+            <option value="">—</option>
+            {operators.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name} ({o.currentCity.name})
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="submit" disabled={!returnOperator}>
+          {t.viewReturnLoads}
+        </button>
+      </form>
+      {returnLoads?.length === 0 && <p>{t.noReturnLoads}</p>}
+      {returnLoads?.map((m) => (
+        <div key={m.loadId} className="card">
+          <div className="row spread">
+            <strong>
+              {m.origin} → {m.destination}
+            </strong>
+            <span>{m.offeredPriceEtb.toLocaleString()} ETB</span>
+          </div>
+          <div className="row">
+            <span>{m.weightTons} t</span>
+            <span>{m.deadheadKm} km deadhead</span>
+            <span className="muted">{m.loadId}</span>
+          </div>
+          {m.reasons.length > 0 && <em className="muted">({m.reasons.join('; ')})</em>}
+        </div>
+      ))}
+
+      <h2>{t.advances}</h2>
       {advances.length === 0 && <p>{t.noAdvances}</p>}
       {advances.map((a) => (
         <div key={a.id} className="card">

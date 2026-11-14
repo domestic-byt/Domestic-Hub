@@ -5,6 +5,7 @@ import type {
   Load,
   Operator,
   OperatorMatch,
+  ReturnLoadMatch,
   Shipment,
   TrackingEvent,
   VatInvoice,
@@ -82,6 +83,9 @@ export const api = {
     offeredPriceEtb: number;
   }) => request<Load>('/loads', 'POST', input),
   getMatches: (loadId: string) => request<OperatorMatch[]>(`/loads/${loadId}/matches`, 'GET'),
+
+  getReturnLoads: (operatorId: string) =>
+    request<ReturnLoadMatch[]>(`/operators/${operatorId}/return-loads`, 'GET'),
 
   createShipment: (loadId: string, operatorId: string) =>
     request<Shipment>('/shipments', 'POST', { loadId, operatorId }),

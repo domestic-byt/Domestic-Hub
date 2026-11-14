@@ -7,6 +7,7 @@ import {
   Load,
   OperatorMatch,
   PayoutAdapter,
+  ReturnLoadMatch,
   Shipment,
   TrackingEvent,
   TrackingEventKind,
@@ -15,6 +16,7 @@ import {
   computeVat,
   nextAdvanceStatus,
   rankOperatorsForLoad,
+  rankReturnLoads,
   validateAdvanceRequest,
 } from '@afro-link/shared';
 import type {
@@ -63,6 +65,11 @@ export class MarketplaceStore implements AgentStore {
   async rankMatches(loadId: string): Promise<OperatorMatch[]> {
     const load = await this.getLoad(loadId);
     return rankOperatorsForLoad(load, await this.repo.listOperators());
+  }
+
+  async rankReturnLoads(operatorId: string): Promise<ReturnLoadMatch[]> {
+    const operator = await this.getOperator(operatorId);
+    return rankReturnLoads(operator, await this.repo.listLoads());
   }
 
   async assignShipment(loadId: string, operatorId: string): Promise<Shipment> {

@@ -181,6 +181,45 @@ describe('marketplace api', async () => {
     expect(recoverRes.json().payoutReference).toMatch(/^TB-SIM-/);
   });
 
+  it('suggests return loads for an operator', async () => {
+    const operatorRes = await app.inject({
+      method: 'POST',
+      url: '/operators',
+      payload: {
+        name: 'Return Trucks',
+        phone: '+251911888999',
+        truckPlate: 'AA-77777',
+        capacityTons: 25,
+        currentCity: jimma,
+      },
+    });
+    expect(operatorRes.statusCode).toBe(201);
+    const operator = operatorRes.json();
+
+    const loadRes = await app.inject({
+      method: 'POST',
+      url: '/loads',
+      payload: {
+        shipperId: 'shipper-3',
+        origin: jimma,
+        destination: addis,
+        weightTons: 20,
+        offeredPriceEtb: 35000,
+      },
+    });
+    const load = loadRes.json();
+
+    const res = await app.inject({ method: 'GET', url: `/operators/${operator.id}/return-loads` });
+    expect(res.statusCode).toBe(200);
+    const matches = res.json();
+    const match = matches.find((m: { loadId: string }) => m.loadId === load.id);
+    expect(match).toBeTruthy();
+    expect(match.deadheadKm).toBe(0);
+
+    const missing = await app.inject({ method: 'GET', url: '/operators/nope/return-loads' });
+    expect(missing.statusCode).toBe(404);
+  });
+
   it('rejects the transition when the payout channel fails', async () => {
     const failing: Record<'telebirr' | 'cbe_birr', PayoutAdapter> = {
       telebirr: failingAdapter('telebirr'),

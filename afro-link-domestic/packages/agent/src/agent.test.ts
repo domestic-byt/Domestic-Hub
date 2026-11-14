@@ -11,6 +11,7 @@ import {
   VatInvoice,
   computeVat,
   rankOperatorsForLoad,
+  rankReturnLoads,
   validateAdvanceRequest,
 } from '@afro-link/shared';
 import { DomesticAgent } from '../src/agent';
@@ -50,6 +51,12 @@ class FakeStore implements AgentStore {
     const load = this.loads.get(loadId);
     if (!load) throw new DomainError('not_found', 'Load not found.');
     return rankOperatorsForLoad(load, this.operators);
+  }
+
+  async rankReturnLoads(operatorId: string) {
+    const operator = this.operators.find((o) => o.id === operatorId);
+    if (!operator) throw new DomainError('not_found', 'Operator not found.');
+    return rankReturnLoads(operator, [...this.loads.values()]);
   }
 
   async assignShipment(loadId: string, operatorId: string): Promise<Shipment> {
@@ -171,6 +178,8 @@ describe('detectIntent', () => {
   it('detects English intents', () => {
     expect(detectIntent('Post 20 tons of coffee from Jimma to Addis Ababa')).toBe('post_load');
     expect(detectIntent('find trucks for my load')).toBe('find_matches');
+    expect(detectIntent('any return loads for me?')).toBe('find_return_loads');
+    expect(detectIntent('looking for a backhaul')).toBe('find_return_loads');
     expect(detectIntent('assign the top match')).toBe('assign_truck');
     expect(detectIntent('request an 8000 birr telebirr advance')).toBe('request_advance');
     expect(detectIntent('where is my shipment?')).toBe('track_shipment');
@@ -240,6 +249,20 @@ describe('DomesticAgent', () => {
     expect(assigned.intent).toBe('assign_truck');
     expect(store.shipments.size).toBe(1);
     expect(assigned.reply).toMatch(/Shipment \S+ assigned/);
+  });
+
+  it('suggests return loads near the truck after a drop-off', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+    await agent.handle('Post 20 tons from Jimma to Addis Ababa for 40000 birr');
+    await agent.handle('assign the top match');
+    await agent.handle('Post 15 tons of coffee from Jimma to Dire Dawa for 30000 birr');
+
+    const result = await agent.handle('any return loads for me?');
+    expect(result.intent).toBe('find_return_loads');
+    expect(result.reply).toContain('return load');
+    expect(result.reply).toContain('Jimma');
+    expect(result.reply).toContain('30000 ETB');
   });
 
   it('requests a fuel advance through telebirr', async () => {

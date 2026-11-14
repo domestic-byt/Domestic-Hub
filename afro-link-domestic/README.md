@@ -37,6 +37,7 @@ The web app reads `VITE_API_BASE` at build time (defaults to `/api`, proxied in 
 | GET/POST | `/shipments` | List / assign a load to an operator |
 | POST | `/shipments/:id/events` | Append tracking events (picked_up, in_transit, delivered, ...) |
 | GET | `/shipments/:id/tracking` | Live tracking timeline |
+| GET | `/operators/:id/return-loads` | Backhaul suggestions: open loads near the operator's current location, ranked to cut empty return trips |
 | GET/POST | `/advances` | Fuel advance requests (Telebirr / CBE Birr) |
 | POST | `/advances/:id/transition` | approve → disburse → recover state machine |
 | GET/POST | `/invoices` | VAT invoices (15% Ethiopian VAT, TIN fields) |
@@ -44,10 +45,11 @@ The web app reads `VITE_API_BASE` at build time (defaults to `/api`, proxied in 
 
 ## Domain rules baked into `@afro-link/shared`
 
+- **Backhaul engine** (`rankReturnLoads`) flips the matching problem around: given a truck's current location, it ranks open loads that pick up nearby so the return leg earns money instead of running empty.
 - **Matching engine** ranks operators by empty-repositioning distance from their last drop-off, capacity fit, and backhaul potential near the destination.
 - **Fuel advances** are capped at 20% of the load price, require an assigned load, one active advance per operator, and follow a strict state machine (`requested → approved → disbursed → recovered`, with `rejected`/`defaulted` terminal states). `disburse` and `recover` execute through a **`PayoutAdapter`** (Telebirr / CBE Birr); a failed payout blocks the transition and the advance keeps its status. Simulated adapters ship today (`TB-SIM-*` / `CBE-SIM-*` references) — real gateways implement the same two-method interface.
 - **VAT invoices** apply the 15% Ethiopian VAT rate and carry shipper/operator TINs for compliance.
-- **Domestic AI Agent** detects intents in English and Amharic (post load, find trucks, assign, fuel advance, track, invoice), extracts slots (cities from an 17-city Ethiopian gazetteer, tons, birr amounts, channels, ids), executes through the same `AgentStore` the HTTP API uses, and polishes replies through a pluggable `LlmAdapter`. Set `MISTRAL_API_KEY` to enable the Mistral adapter (`MistralLlmAdapter`, Mistral chat completions API); if the LLM call fails or the key is absent, the agent falls back to its deterministic replies.
+- **Domestic AI Agent** detects intents in English and Amharic (post load, find trucks, assign, return loads, fuel advance, track, invoice), extracts slots (cities from an 17-city Ethiopian gazetteer, tons, birr amounts, channels, ids), executes through the same `AgentStore` the HTTP API uses, and polishes replies through a pluggable `LlmAdapter`. Set `MISTRAL_API_KEY` to enable the Mistral adapter (`MistralLlmAdapter`, Mistral chat completions API); if the LLM call fails or the key is absent, the agent falls back to its deterministic replies.
 
 ## Domain & deployment
 
@@ -93,5 +95,5 @@ Live gateways enforce a 15s timeout (`*_TIMEOUT_MS` to override), map HTTP/netwo
 
 ## Roadmap
 
-- `apps/web` — driver app polish (Amharic/English) and voice input for the Domestic AI Agent.
+- Driver-facing mobile experience (offline-first PWA) on top of the existing web panels.
 - Activate live Telebirr / CBE Birr gateway credentials (adapter code is ready; see Payout gateways above).
