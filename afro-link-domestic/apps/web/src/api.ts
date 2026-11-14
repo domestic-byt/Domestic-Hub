@@ -143,6 +143,8 @@ export const api = {
   transitionAdvance: (advanceId: string, action: string) =>
     request<FuelAdvance>(`/advances/${advanceId}/transition`, 'POST', { action }),
   listAdvances: () => request<FuelAdvance[]>('/advances', 'GET'),
+  retryPayout: (advanceId: string) =>
+    request<FuelAdvance>(`/advances/${advanceId}/retry-payout`, 'POST'),
 
   createInvoice: (shipmentId: string, shipperTin: string, operatorTin: string) =>
     request<VatInvoice>('/invoices', 'POST', { shipmentId, shipperTin, operatorTin }),

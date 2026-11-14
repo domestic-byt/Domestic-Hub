@@ -48,4 +48,10 @@ export async function advanceRoutes(app: FastifyInstance, store: MarketplaceStor
     }
     return run(reply, () => store.transitionAdvance(id, body!.action as AdvanceAction));
   });
+
+  app.post('/advances/:id/retry-payout', async (request, reply) => {
+    if (guard(request, reply, 'admin')) return;
+    const { id } = request.params as { id: string };
+    return run(reply, () => store.retryPayout(id));
+  });
 }

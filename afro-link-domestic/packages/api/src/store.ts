@@ -370,27 +370,62 @@ export class MarketplaceStore implements AgentStore {
     }
     let updated: FuelAdvance = { ...advance, status: next };
     if (action === 'disburse' || action === 'recover') {
-      const operator = await this.repo.getOperator(advance.operatorId);
-      const request = {
-        advanceId: advance.id,
-        operatorId: advance.operatorId,
-        amountEtb: advance.amountEtb,
-        phone: operator?.phone ?? '',
-        channel: advance.channel,
-      };
-      const adapter = this.payouts[advance.channel];
-      const payout =
-        action === 'disburse' ? await adapter.disburse(request) : await adapter.recover(request);
-      if (!payout.success) {
-        throw new DomainError(
-          'conflict',
-          `${advance.channel} payout failed: ${payout.error ?? 'unknown error'}`,
-        );
-      }
-      updated = { ...updated, payoutReference: payout.reference };
+      updated = await this.runPayout(advance, updated, action);
     }
     await this.repo.saveAdvance(updated);
     return updated;
+  }
+
+  async retryPayout(id: string): Promise<FuelAdvance> {
+    const advance = await this.repo.getAdvance(id);
+    if (!advance) {
+      throw new DomainError('not_found', 'Advance not found.');
+    }
+    if (advance.status !== 'approved' && advance.status !== 'disbursed') {
+      throw new DomainError(
+        'conflict',
+        `No payout to retry for an advance in status '${advance.status}'.`,
+      );
+    }
+    const action = advance.status === 'approved' ? 'disburse' : 'recover';
+    const next = advance.status === 'approved' ? 'disbursed' : 'recovered';
+    const updated = await this.runPayout(advance, { ...advance, status: next }, action);
+    await this.repo.saveAdvance(updated);
+    return updated;
+  }
+
+  private async runPayout(
+    advance: FuelAdvance,
+    updated: FuelAdvance,
+    action: 'disburse' | 'recover',
+  ): Promise<FuelAdvance> {
+    const operator = await this.repo.getOperator(advance.operatorId);
+    const request = {
+      advanceId: advance.id,
+      operatorId: advance.operatorId,
+      amountEtb: advance.amountEtb,
+      phone: operator?.phone ?? '',
+      channel: advance.channel,
+    };
+    const adapter = this.payouts[advance.channel];
+    const payout =
+      action === 'disburse' ? await adapter.disburse(request) : await adapter.recover(request);
+    const attempts = (advance.payoutAttempts ?? 0) + 1;
+    if (!payout.success) {
+      const error = `${advance.channel} payout failed: ${payout.error ?? 'unknown error'}`;
+      await this.repo.saveAdvance({
+        ...advance,
+        payoutAttempts: attempts,
+        lastPayoutError: error,
+      });
+      throw new DomainError('conflict', error);
+    }
+    return {
+      ...updated,
+      payoutReference: payout.reference,
+      payoutAttempts: attempts,
+      lastPayoutError: undefined,
+    };
   }
 
   async createInvoice(input: NewInvoiceInput): Promise<VatInvoice> {

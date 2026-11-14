@@ -70,6 +70,8 @@ export interface FuelAdvance {
   status: AdvanceStatus;
   requestedAt: string;
   payoutReference?: string;
+  payoutAttempts?: number;
+  lastPayoutError?: string;
 }
 
 export interface VatInvoice {

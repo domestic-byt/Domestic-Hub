@@ -682,6 +682,103 @@ describe('marketplace api', async () => {
       const stored = stateRes.json().find((a: { id: string }) => a.id === advance.id);
       expect(stored.status).toBe('approved');
       expect(stored.payoutReference).toBeUndefined();
+      expect(stored.payoutAttempts).toBe(1);
+      expect(stored.lastPayoutError).toMatch(/telebirr payout failed/);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('retries a failed payout through the admin endpoint', async () => {
+    let disburseCalls = 0;
+    const flaky: Record<'telebirr' | 'cbe_birr', PayoutAdapter> = {
+      telebirr: {
+        async disburse() {
+          disburseCalls += 1;
+          if (disburseCalls === 1) {
+            return { success: false, error: 'telebirr outage' };
+          }
+          return { success: true, reference: 'TB-RETRY-OK1' };
+        },
+        async recover() {
+          return { success: true, reference: 'TB-RETRY-OK2' };
+        },
+      },
+      cbe_birr: failingAdapter('cbe_birr'),
+    };
+    const app = await buildServer({ payouts: flaky });
+    await app.ready();
+    try {
+      const operatorRes = await app.inject({
+        method: 'POST',
+        url: '/operators',
+        payload: {
+          name: 'Retry Logistics',
+          phone: '+251911000010',
+          truckPlate: 'AA-00002',
+          capacityTons: 25,
+          currentCity: addis,
+        },
+      });
+      const operator = operatorRes.json();
+      const loadRes = await app.inject({
+        method: 'POST',
+        url: '/loads',
+        payload: {
+          shipperId: 'shipper-10',
+          origin: addis,
+          destination: jimma,
+          weightTons: 15,
+          offeredPriceEtb: 30000,
+        },
+      });
+      const load = loadRes.json();
+      const shipmentRes = await app.inject({
+        method: 'POST',
+        url: '/shipments',
+        payload: { loadId: load.id, operatorId: operator.id },
+      });
+      const shipment = shipmentRes.json();
+      const advanceRes = await app.inject({
+        method: 'POST',
+        url: '/advances',
+        payload: {
+          operatorId: operator.id,
+          shipmentId: shipment.id,
+          amountEtb: 2000,
+          channel: 'telebirr',
+        },
+      });
+      const advance = advanceRes.json();
+
+      const earlyRetry = await app.inject({
+        method: 'POST',
+        url: `/advances/${advance.id}/retry-payout`,
+      });
+      expect(earlyRetry.statusCode).toBe(409);
+      expect(earlyRetry.json().error).toMatch(/status 'requested'/);
+
+      await app.inject({
+        method: 'POST',
+        url: `/advances/${advance.id}/transition`,
+        payload: { action: 'approve' },
+      });
+      const disburseRes = await app.inject({
+        method: 'POST',
+        url: `/advances/${advance.id}/transition`,
+        payload: { action: 'disburse' },
+      });
+      expect(disburseRes.statusCode).toBe(409);
+
+      const retryRes = await app.inject({
+        method: 'POST',
+        url: `/advances/${advance.id}/retry-payout`,
+      });
+      expect(retryRes.statusCode).toBe(200);
+      expect(retryRes.json().status).toBe('disbursed');
+      expect(retryRes.json().payoutReference).toBe('TB-RETRY-OK1');
+      expect(retryRes.json().payoutAttempts).toBe(2);
+      expect(retryRes.json().lastPayoutError).toBeUndefined();
     } finally {
       await app.close();
     }

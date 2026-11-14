@@ -72,7 +72,9 @@ CREATE TABLE IF NOT EXISTS fuel_advances (
   channel TEXT NOT NULL,
   status TEXT NOT NULL,
   requested_at TIMESTAMPTZ NOT NULL,
-  payout_reference TEXT
+  payout_reference TEXT,
+  payout_attempts INTEGER,
+  last_payout_error TEXT
 );
 CREATE TABLE IF NOT EXISTS invoices (
   id TEXT PRIMARY KEY,
@@ -181,6 +183,8 @@ function rowToAdvance(row: Row): FuelAdvance {
     status: str(row.status) as AdvanceStatus,
     requestedAt: iso(row.requested_at),
     payoutReference: row.payout_reference === null ? undefined : str(row.payout_reference),
+    payoutAttempts: row.payout_attempts === null ? undefined : num(row.payout_attempts),
+    lastPayoutError: row.last_payout_error === null ? undefined : str(row.last_payout_error),
   };
 }
 
@@ -355,12 +359,13 @@ export class PgRepo implements MarketplaceRepo {
 
   async saveAdvance(advance: FuelAdvance): Promise<void> {
     await this.pool.query(
-      `INSERT INTO fuel_advances (id, operator_id, shipment_id, amount_etb, channel, status, requested_at, payout_reference)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO fuel_advances (id, operator_id, shipment_id, amount_etb, channel, status, requested_at, payout_reference, payout_attempts, last_payout_error)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (id) DO UPDATE SET
          operator_id = EXCLUDED.operator_id, shipment_id = EXCLUDED.shipment_id,
          amount_etb = EXCLUDED.amount_etb, channel = EXCLUDED.channel, status = EXCLUDED.status,
-         requested_at = EXCLUDED.requested_at, payout_reference = EXCLUDED.payout_reference`,
+         requested_at = EXCLUDED.requested_at, payout_reference = EXCLUDED.payout_reference,
+         payout_attempts = EXCLUDED.payout_attempts, last_payout_error = EXCLUDED.last_payout_error`,
       [
         advance.id,
         advance.operatorId,
@@ -370,6 +375,8 @@ export class PgRepo implements MarketplaceRepo {
         advance.status,
         advance.requestedAt,
         advance.payoutReference ?? null,
+        advance.payoutAttempts ?? null,
+        advance.lastPayoutError ?? null,
       ],
     );
   }

@@ -511,6 +511,16 @@ function DriverPanel({ t }: { t: Strings }) {
     }
   }
 
+  async function retry(advanceId: string) {
+    setError(null);
+    try {
+      await api.retryPayout(advanceId);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   return (
     <section>
       <h2>{t.registerTruck}</h2>
@@ -721,6 +731,13 @@ function DriverPanel({ t }: { t: Strings }) {
             <span className="muted">{a.id}</span>
             {a.payoutReference && <span className="ref">{a.payoutReference}</span>}
           </div>
+          {a.lastPayoutError && (
+            <div className="row">
+              <em className="muted">
+                {t.payoutFailed} ({a.payoutAttempts ?? 1})
+              </em>
+            </div>
+          )}
           <div className="row">
             {a.status === 'requested' && (
               <>
@@ -733,6 +750,11 @@ function DriverPanel({ t }: { t: Strings }) {
             )}
             {a.status === 'disbursed' && (
               <button onClick={() => transition(a.id, 'recover')}>{t.markRecovered}</button>
+            )}
+            {a.lastPayoutError && (a.status === 'approved' || a.status === 'disbursed') && (
+              <button className="danger" onClick={() => void retry(a.id)}>
+                {t.retryPayout}
+              </button>
             )}
           </div>
         </div>

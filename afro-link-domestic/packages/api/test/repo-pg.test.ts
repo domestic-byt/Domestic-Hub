@@ -149,7 +149,13 @@ describe.skipIf(!process.env.DATABASE_URL)('pg repo', () => {
       channel: 'telebirr' as const,
       requestedAt: '2025-01-11T09:30:00.000Z',
     };
-    const active = { id: `adv-${crypto.randomUUID()}`, ...base, status: 'disbursed' as const };
+    const active = {
+      id: `adv-${crypto.randomUUID()}`,
+      ...base,
+      status: 'disbursed' as const,
+      payoutAttempts: 2,
+      lastPayoutError: 'telebirr payout failed: telebirr outage',
+    };
     const done = { id: `adv-${crypto.randomUUID()}`, ...base, status: 'recovered' as const };
     const other = {
       id: `adv-${crypto.randomUUID()}`,

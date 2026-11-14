@@ -77,6 +77,8 @@ export interface FuelAdvance {
   status: 'requested' | 'approved' | 'disbursed' | 'recovered' | 'rejected' | 'defaulted';
   requestedAt: string;
   payoutReference?: string;
+  payoutAttempts?: number;
+  lastPayoutError?: string;
 }
 
 export interface VatInvoice {
