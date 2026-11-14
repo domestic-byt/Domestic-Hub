@@ -1,5 +1,6 @@
 import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
+import { AdvanceChannel, PayoutAdapter } from '@afro-link/shared';
 import { DomesticAgent } from '@afro-link/agent';
 import { Repo } from './repo';
 import { MarketplaceStore } from './store';
@@ -24,9 +25,11 @@ export function allowedOrigins(): string[] {
   return fromEnv && fromEnv.length > 0 ? fromEnv : DEFAULT_ALLOWED_ORIGINS;
 }
 
-export function buildServer(): FastifyInstance {
+export function buildServer(options?: {
+  payouts?: Record<AdvanceChannel, PayoutAdapter>;
+}): FastifyInstance {
   const app = Fastify({ logger: false });
-  const store = new MarketplaceStore(new Repo());
+  const store = new MarketplaceStore(new Repo(), options?.payouts);
   const agent = new DomesticAgent(store);
   const origins = allowedOrigins();
 

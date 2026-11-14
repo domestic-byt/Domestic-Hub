@@ -5,3 +5,4 @@ export * from './domain/vat';
 export * from './domain/advances';
 export * from './domain/errors';
 export * from './domain/cities';
+export * from './domain/payouts';

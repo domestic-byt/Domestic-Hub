@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { PayoutAdapter, PayoutRequest, PayoutResult } from '@afro-link/shared';
 import { buildServer } from '../src/server';
 
 const addis = { name: 'Addis Ababa', lat: 9.03, lon: 38.74 };
@@ -106,12 +107,12 @@ describe('marketplace api', () => {
     expect(advanceRes.statusCode).toBe(201);
     const advance = advanceRes.json();
 
-    const disburseRes = await app.inject({
+    const earlyDisburseRes = await app.inject({
       method: 'POST',
       url: `/advances/${advance.id}/transition`,
       payload: { action: 'disburse' },
     });
-    expect(disburseRes.statusCode).toBe(409);
+    expect(earlyDisburseRes.statusCode).toBe(409);
 
     const approveRes = await app.inject({
       method: 'POST',
@@ -120,6 +121,15 @@ describe('marketplace api', () => {
     });
     expect(approveRes.statusCode).toBe(200);
     expect(approveRes.json().status).toBe('approved');
+
+    const disburseRes = await app.inject({
+      method: 'POST',
+      url: `/advances/${advance.id}/transition`,
+      payload: { action: 'disburse' },
+    });
+    expect(disburseRes.statusCode).toBe(200);
+    expect(disburseRes.json().status).toBe('disbursed');
+    expect(disburseRes.json().payoutReference).toMatch(/^TB-SIM-/);
 
     const secondAdvance = await app.inject({
       method: 'POST',
@@ -160,6 +170,87 @@ describe('marketplace api', () => {
       vatEtb: 6000,
       totalEtb: 46000,
     });
+
+    const recoverRes = await app.inject({
+      method: 'POST',
+      url: `/advances/${advance.id}/transition`,
+      payload: { action: 'recover' },
+    });
+    expect(recoverRes.statusCode).toBe(200);
+    expect(recoverRes.json().status).toBe('recovered');
+    expect(recoverRes.json().payoutReference).toMatch(/^TB-SIM-/);
+  });
+
+  it('rejects the transition when the payout channel fails', async () => {
+    const failing: Record<'telebirr' | 'cbe_birr', PayoutAdapter> = {
+      telebirr: failingAdapter('telebirr'),
+      cbe_birr: failingAdapter('cbe_birr'),
+    };
+    const app = buildServer({ payouts: failing });
+    await app.ready();
+    try {
+      const operatorRes = await app.inject({
+        method: 'POST',
+        url: '/operators',
+        payload: {
+          name: 'Fail Fast Logistics',
+          phone: '+251911000009',
+          truckPlate: 'AA-00001',
+          capacityTons: 25,
+          currentCity: addis,
+        },
+      });
+      const operator = operatorRes.json();
+      const loadRes = await app.inject({
+        method: 'POST',
+        url: '/loads',
+        payload: {
+          shipperId: 'shipper-9',
+          origin: addis,
+          destination: jimma,
+          weightTons: 15,
+          offeredPriceEtb: 30000,
+        },
+      });
+      const load = loadRes.json();
+      const shipmentRes = await app.inject({
+        method: 'POST',
+        url: '/shipments',
+        payload: { loadId: load.id, operatorId: operator.id },
+      });
+      const shipment = shipmentRes.json();
+      const advanceRes = await app.inject({
+        method: 'POST',
+        url: '/advances',
+        payload: {
+          operatorId: operator.id,
+          shipmentId: shipment.id,
+          amountEtb: 2000,
+          channel: 'telebirr',
+        },
+      });
+      const advance = advanceRes.json();
+      await app.inject({
+        method: 'POST',
+        url: `/advances/${advance.id}/transition`,
+        payload: { action: 'approve' },
+      });
+
+      const disburseRes = await app.inject({
+        method: 'POST',
+        url: `/advances/${advance.id}/transition`,
+        payload: { action: 'disburse' },
+      });
+      expect(disburseRes.statusCode).toBe(409);
+      expect(disburseRes.json().error).toMatch(/telebirr payout failed/);
+
+      const stateRes = await app.inject({ method: 'GET', url: '/advances' });
+      const stored = stateRes.json().find((a: { id: string }) => a.id === advance.id);
+      expect(stored.status).toBe('approved');
+      expect(stored.payoutReference).toBeUndefined();
+    } finally {
+      await app.close();
+    }
   });
 
   it('rejects oversize advance requests', async () => {
@@ -291,3 +382,14 @@ describe('domestic ai agent endpoint', () => {
     expect(res.json().reply).toContain('Domestic AI Agent');
   });
 });
+
+function failingAdapter(channel: 'telebirr' | 'cbe_birr'): PayoutAdapter {
+  return {
+    async disburse(_request: PayoutRequest): Promise<PayoutResult> {
+      return { success: false, error: `${channel} outage` };
+    },
+    async recover(_request: PayoutRequest): Promise<PayoutResult> {
+      return { success: false, error: `${channel} outage` };
+    },
+  };
+}

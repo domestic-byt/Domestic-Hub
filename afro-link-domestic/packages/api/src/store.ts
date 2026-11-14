@@ -1,10 +1,12 @@
 import {
   AdvanceAction,
+  AdvanceChannel,
   City,
   DomainError,
   FuelAdvance,
   Load,
   OperatorMatch,
+  PayoutAdapter,
   Shipment,
   TrackingEvent,
   TrackingEventKind,
@@ -22,9 +24,13 @@ import type {
   NewLoadInput,
 } from '@afro-link/agent';
 import { Repo } from './repo';
+import { defaultPayoutAdapters } from './payouts';
 
 export class MarketplaceStore implements AgentStore {
-  constructor(private readonly repo: Repo) {}
+  constructor(
+    private readonly repo: Repo,
+    private readonly payouts: Record<AdvanceChannel, PayoutAdapter> = defaultPayoutAdapters(),
+  ) {}
 
   createOperator(input: {
     name: string;
@@ -163,7 +169,7 @@ export class MarketplaceStore implements AgentStore {
     return advance;
   }
 
-  transitionAdvance(id: string, action: AdvanceAction): FuelAdvance {
+  async transitionAdvance(id: string, action: AdvanceAction): Promise<FuelAdvance> {
     const advance = this.repo.advances.get(id);
     if (!advance) {
       throw new DomainError('not_found', 'Advance not found.');
@@ -175,7 +181,27 @@ export class MarketplaceStore implements AgentStore {
         `Cannot ${action} an advance in status '${advance.status}'.`,
       );
     }
-    const updated = { ...advance, status: next };
+    let updated: FuelAdvance = { ...advance, status: next };
+    if (action === 'disburse' || action === 'recover') {
+      const operator = this.repo.operators.get(advance.operatorId);
+      const request = {
+        advanceId: advance.id,
+        operatorId: advance.operatorId,
+        amountEtb: advance.amountEtb,
+        phone: operator?.phone ?? '',
+        channel: advance.channel,
+      };
+      const adapter = this.payouts[advance.channel];
+      const payout =
+        action === 'disburse' ? await adapter.disburse(request) : await adapter.recover(request);
+      if (!payout.success) {
+        throw new DomainError(
+          'conflict',
+          `${advance.channel} payout failed: ${payout.error ?? 'unknown error'}`,
+        );
+      }
+      updated = { ...updated, payoutReference: payout.reference };
+    }
     this.repo.advances.set(id, updated);
     return updated;
   }

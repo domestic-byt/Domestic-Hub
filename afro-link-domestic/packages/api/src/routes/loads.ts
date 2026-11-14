@@ -13,13 +13,13 @@ function isCity(value: unknown): value is City {
   );
 }
 
-export function run<T>(
+export async function run<T>(
   reply: FastifyReply,
-  fn: () => T,
+  fn: () => T | Promise<T>,
   successStatus?: number,
-): T | FastifyReply {
+): Promise<T | FastifyReply> {
   try {
-    const result = fn();
+    const result = await fn();
     return successStatus === undefined ? result : reply.code(successStatus).send(result);
   } catch (err) {
     if (!(err instanceof DomainError)) throw err;

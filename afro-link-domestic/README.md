@@ -39,7 +39,7 @@ npm run dev:api   # start API on http://127.0.0.1:3000
 ## Domain rules baked into `@afro-link/shared`
 
 - **Matching engine** ranks operators by empty-repositioning distance from their last drop-off, capacity fit, and backhaul potential near the destination.
-- **Fuel advances** are capped at 20% of the load price, require an assigned load, one active advance per operator, and follow a strict state machine (`requested → approved → disbursed → recovered`, with `rejected`/`defaulted` terminal states).
+- **Fuel advances** are capped at 20% of the load price, require an assigned load, one active advance per operator, and follow a strict state machine (`requested → approved → disbursed → recovered`, with `rejected`/`defaulted` terminal states). `disburse` and `recover` execute through a **`PayoutAdapter`** (Telebirr / CBE Birr); a failed payout blocks the transition and the advance keeps its status. Simulated adapters ship today (`TB-SIM-*` / `CBE-SIM-*` references) — real gateways implement the same two-method interface.
 - **VAT invoices** apply the 15% Ethiopian VAT rate and carry shipper/operator TINs for compliance.
 - **Domestic AI Agent** detects intents in English and Amharic (post load, find trucks, assign, fuel advance, track, invoice), extracts slots (cities from an 17-city Ethiopian gazetteer, tons, birr amounts, channels, ids), executes through the same `AgentStore` the HTTP API uses, and optionally polishes replies through a pluggable `LlmAdapter`.
 
@@ -54,6 +54,6 @@ Canonical domain: **https://afro-link.domestic.com.et** (Afro-Link Domestic, par
 ## Roadmap
 
 - `apps/web` — shipper dashboard and driver app (Amharic/English).
-- Real Telebirr / CBE Birr payout adapters behind the advance state machine.
+- Real Telebirr (SuperApp API) / CBE Birr gateway credentials behind the existing `PayoutAdapter` interface.
 - Real LLM adapter (e.g. Mistral) behind the agent's `LlmAdapter` interface, plus voice input.
 - Persistent storage (PostgreSQL) replacing the in-memory repo, plus auth via DomesticHub SSO.

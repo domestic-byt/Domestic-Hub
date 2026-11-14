@@ -59,6 +59,7 @@ export interface FuelAdvance {
   channel: AdvanceChannel;
   status: AdvanceStatus;
   requestedAt: string;
+  payoutReference?: string;
 }
 
 export interface VatInvoice {
