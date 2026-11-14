@@ -23,6 +23,7 @@ import {
   rankReturnLoads,
   suggestPrice,
   validateAdvanceRequest,
+  ProofOfDelivery,
 } from '@afro-link/shared';
 import type {
   AgentStore,
@@ -291,6 +292,32 @@ export class MarketplaceStore implements AgentStore {
         totalWithVatEtb: invoices.reduce((sum, i) => sum + i.totalEtb, 0),
       },
     };
+  }
+
+  async capturePod(
+    shipmentId: string,
+    receiverName: string,
+    note?: string,
+  ): Promise<Shipment> {
+    const shipment = await this.getShipment(shipmentId);
+    if (shipment.status !== 'delivered') {
+      throw new DomainError(
+        'conflict',
+        'Proof of delivery can only be captured on delivered shipments.',
+      );
+    }
+    const trimmed = receiverName.trim();
+    if (trimmed === '') {
+      throw new DomainError('validation', 'Receiver name is required.');
+    }
+    const pod: ProofOfDelivery = {
+      receiverName: trimmed,
+      ...(note && note.trim() !== '' ? { note: note.trim() } : {}),
+      capturedAt: new Date().toISOString(),
+    };
+    const updated: Shipment = { ...shipment, pod };
+    await this.repo.saveShipment(updated);
+    return updated;
   }
 
   async getTracking(shipmentId: string): Promise<TrackingEvent[]> {

@@ -32,6 +32,12 @@ export interface Load {
 
 export type ShipmentStatus = 'assigned' | 'in_transit' | 'delivered' | 'cancelled';
 
+export interface ProofOfDelivery {
+  receiverName: string;
+  note?: string;
+  capturedAt: string;
+}
+
 export interface Shipment {
   id: string;
   loadId: string;
@@ -40,6 +46,7 @@ export interface Shipment {
   deliveredAt?: string;
   status: ShipmentStatus;
   deadheadKm?: number;
+  pod?: ProofOfDelivery;
 }
 
 export type AdvanceChannel = 'telebirr' | 'cbe_birr';

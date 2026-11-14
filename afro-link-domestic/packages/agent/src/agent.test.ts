@@ -158,6 +158,31 @@ class FakeStore implements AgentStore {
     return [...this.loads.values()].at(-1);
   }
 
+  async capturePod(
+    shipmentId: string,
+    receiverName: string,
+    note?: string,
+  ): Promise<Shipment> {
+    const shipment = this.shipments.get(shipmentId);
+    if (!shipment) throw new DomainError('not_found', 'Shipment not found.');
+    if (shipment.status !== 'delivered') {
+      throw new DomainError(
+        'conflict',
+        'Proof of delivery can only be captured on delivered shipments.',
+      );
+    }
+    const updated: Shipment = {
+      ...shipment,
+      pod: {
+        receiverName: receiverName.trim(),
+        ...(note ? { note } : {}),
+        capturedAt: new Date().toISOString(),
+      },
+    };
+    this.shipments.set(shipmentId, updated);
+    return updated;
+  }
+
   async cancelLoad(loadId: string): Promise<Load> {
     const load = this.loads.get(loadId);
     if (!load) throw new DomainError('not_found', 'Load not found.');
@@ -283,6 +308,7 @@ describe('detectIntent', () => {
       'price_suggestion',
     );
     expect(detectIntent('ዋጋው ስንት ነው?')).toBe('price_suggestion');
+    expect(detectIntent('proof of delivery received by Abebe')).toBe('capture_pod');
     expect(detectIntent('help')).toBe('help');
     expect(detectIntent('xyzzy')).toBe('unknown');
   });
@@ -515,6 +541,36 @@ describe('DomesticAgent', () => {
 
     const again = await agent.handle('cancel that load');
     expect(again.reply).toMatch(/⚠️.*cancelled/);
+  });
+
+  it('captures proof of delivery with a receiver name', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+    await agent.handle('Post 20 tons from Jimma to Addis Ababa for 40000 birr');
+    await agent.handle('assign the top match');
+    const shipmentId = (await store.findLatestShipment())!.id;
+
+    const early = await agent.handle('confirm delivery received by Abebe Kebede');
+    expect(early.intent).toBe('capture_pod');
+    expect(early.reply).toMatch(/\u26a0\ufe0f.*delivered/);
+
+    store.deliver(shipmentId);
+    const result = await agent.handle('confirm delivery received by Abebe Kebede');
+    expect(result.intent).toBe('capture_pod');
+    expect(result.reply).toContain('Abebe Kebede');
+    expect(store.shipments.get(shipmentId)!.pod?.receiverName).toBe('Abebe Kebede');
+  });
+
+  it('asks for the receiver name when capturing proof of delivery', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+    await agent.handle('Post 20 tons from Jimma to Addis Ababa for 40000 birr');
+    await agent.handle('assign the top match');
+    store.deliver((await store.findLatestShipment())!.id);
+
+    const result = await agent.handle('confirm the delivery please');
+    expect(result.intent).toBe('capture_pod');
+    expect(result.reply).toContain('receiver');
   });
 
   it('reports operator earnings after delivery', async () => {

@@ -44,6 +44,12 @@ export interface ReturnLoadMatch {
   reasons: string[];
 }
 
+export interface ProofOfDelivery {
+  receiverName: string;
+  note?: string;
+  capturedAt: string;
+}
+
 export interface Shipment {
   id: string;
   loadId: string;
@@ -51,6 +57,7 @@ export interface Shipment {
   assignedAt: string;
   deliveredAt?: string;
   status: 'assigned' | 'in_transit' | 'delivered';
+  pod?: ProofOfDelivery;
 }
 
 export interface TrackingEvent {

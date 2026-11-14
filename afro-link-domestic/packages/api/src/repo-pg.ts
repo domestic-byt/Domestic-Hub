@@ -6,6 +6,7 @@ import {
   FuelAdvance,
   Load,
   LoadStatus,
+  ProofOfDelivery,
   Shipment,
   ShipmentStatus,
   TrackingEvent,
@@ -49,7 +50,8 @@ CREATE TABLE IF NOT EXISTS shipments (
   assigned_at TIMESTAMPTZ NOT NULL,
   delivered_at TIMESTAMPTZ,
   status TEXT NOT NULL,
-  deadhead_km DOUBLE PRECISION
+  deadhead_km DOUBLE PRECISION,
+  pod JSONB
 );
 CREATE TABLE IF NOT EXISTS tracking_events (
   seq BIGSERIAL,
@@ -145,6 +147,7 @@ function rowToShipment(row: Row): Shipment {
     deliveredAt: isoOrNull(row.delivered_at),
     status: str(row.status) as ShipmentStatus,
     deadheadKm: row.deadhead_km === null ? undefined : num(row.deadhead_km),
+    pod: (row.pod as ProofOfDelivery | null) ?? undefined,
   };
 }
 
@@ -281,12 +284,12 @@ export class PgRepo implements MarketplaceRepo {
 
   async saveShipment(shipment: Shipment): Promise<void> {
     await this.pool.query(
-      `INSERT INTO shipments (id, load_id, operator_id, assigned_at, delivered_at, status, deadhead_km)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO shipments (id, load_id, operator_id, assigned_at, delivered_at, status, deadhead_km, pod)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (id) DO UPDATE SET
          load_id = EXCLUDED.load_id, operator_id = EXCLUDED.operator_id,
          assigned_at = EXCLUDED.assigned_at, delivered_at = EXCLUDED.delivered_at,
-         status = EXCLUDED.status, deadhead_km = EXCLUDED.deadhead_km`,
+         status = EXCLUDED.status, deadhead_km = EXCLUDED.deadhead_km, pod = EXCLUDED.pod`,
       [
         shipment.id,
         shipment.loadId,
@@ -295,6 +298,7 @@ export class PgRepo implements MarketplaceRepo {
         shipment.deliveredAt ?? null,
         shipment.status,
         shipment.deadheadKm ?? null,
+        shipment.pod ? JSON.stringify(shipment.pod) : null,
       ],
     );
   }

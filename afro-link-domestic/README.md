@@ -38,6 +38,7 @@ The web app reads `VITE_API_BASE` at build time (defaults to `/api`, proxied in 
 | GET/POST | `/shipments` | List / assign a load to an operator |
 | POST | `/shipments/:id/events` | Append tracking events (picked_up, in_transit, delivered, ...) |
 | GET | `/shipments/:id/tracking` | Live tracking timeline |
+| POST | `/shipments/:id/pod` | Capture proof of delivery (receiver name + note) on delivered shipments (operator/admin) |
 | GET | `/operators/:id/return-loads` | Backhaul suggestions: open loads near the operator's current location, ranked to cut empty return trips |
 | GET | `/operators/:id/earnings` | Driver earnings: delivered shipments, gross ETB, outstanding fuel advances, net (operator/admin only; operators see their own) |
 | GET/POST | `/advances` | Fuel advance requests (Telebirr / CBE Birr) |
@@ -57,6 +58,7 @@ The web app reads `VITE_API_BASE` at build time (defaults to `/api`, proxied in 
 - **Driver earnings** (`GET /operators/:id/earnings`) total the value of delivered shipments, subtract outstanding fuel advances (requested/approved/disbursed), and report the net position per operator.
 - **Fuel advances** are capped at 20% of the load price, require an assigned load, one active advance per operator, and follow a strict state machine (`requested → approved → disbursed → recovered`, with `rejected`/`defaulted` terminal states). `disburse` and `recover` execute through a **`PayoutAdapter`** (Telebirr / CBE Birr); a failed payout blocks the transition and the advance keeps its status. Simulated adapters ship today (`TB-SIM-*` / `CBE-SIM-*` references) — real gateways implement the same two-method interface.
 - **VAT invoices** apply the 15% Ethiopian VAT rate and carry shipper/operator TINs for compliance.
+- **Proof of delivery** records who received the cargo (receiver name + optional note) on delivered shipments \u2014 `POST /shipments/:id/pod`, a Driver-panel form, and the agent ("confirm delivery received by Abebe Kebede"). Captured offline in the driver PWA, it queues and syncs automatically.
 - **Domestic AI Agent** detects intents in English, Amharic (አማርኛ), Oromiffa (Afaan Oromoo), Aff-Somali (Soomaali), Tigrinya (ትግርኛ) and Kiswahili (post load, find trucks, assign, return loads, fuel advance, track, invoice, business report), extracts slots (cities from an 17-city Ethiopian gazetteer, tons, birr amounts, channels, ids), executes through the same `AgentStore` the HTTP API uses, remembers each conversation session (pass `sessionId`; slots and ids from earlier turns fill in follow-ups like “post another 15 tons” or “assign the top match”), answers “show me the business report” / “ሪፖርት” with the live marketplace snapshot, and polishes replies through a pluggable `LlmAdapter`. Pass `lang` on `/agent/chat` (`am`, `om`, `so`, `ti`, `sw`) and the LLM adapter replies in that language; without it the agent answers in English. Set `MISTRAL_API_KEY` to enable the Mistral adapter (`MistralLlmAdapter`, Mistral chat completions API); if the LLM call fails or the key is absent, the agent falls back to its deterministic replies.
 
 ## Domain & deployment

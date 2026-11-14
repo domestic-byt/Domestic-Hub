@@ -77,6 +77,24 @@ describe.skipIf(!process.env.DATABASE_URL)('pg repo', () => {
     await repo.saveShipment(shipment);
     expect(await repo.getShipment(shipment.id)).toEqual(shipment);
 
+    const pod = {
+      receiverName: 'Abebe Kebede',
+      note: 'Offloaded at the warehouse gate',
+      capturedAt: '2025-01-12T18:05:00.000Z',
+    };
+    await repo.saveShipment({
+      ...shipment,
+      status: 'delivered',
+      deliveredAt: '2025-01-12T18:00:00.000Z',
+      pod,
+    });
+    expect(await repo.getShipment(shipment.id)).toEqual({
+      ...shipment,
+      status: 'delivered',
+      deliveredAt: '2025-01-12T18:00:00.000Z',
+      pod,
+    });
+
     await repo.saveShipment({ ...shipment, status: 'delivered', deliveredAt: '2025-01-12T18:00:00.000Z' });
     expect(await repo.getShipment(shipment.id)).toEqual({
       ...shipment,

@@ -129,6 +129,8 @@ export const api = {
     request<TrackingEvent>(`/shipments/${shipmentId}/events`, 'POST', { kind, location }),
   getTracking: (shipmentId: string) =>
     request<TrackingEvent[]>(`/shipments/${shipmentId}/tracking`, 'GET'),
+  capturePod: (shipmentId: string, receiverName: string, note?: string) =>
+    request<Shipment>(`/shipments/${shipmentId}/pod`, 'POST', { receiverName, note }),
 
   requestAdvance: (input: {
     operatorId: string;

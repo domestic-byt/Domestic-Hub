@@ -47,6 +47,11 @@ export interface AgentStore {
   findLatestShipment(): Promise<Shipment | undefined>;
   findLatestLoad(): Promise<Load | undefined>;
   cancelLoad(loadId: string): Promise<Load>;
+  capturePod(
+    shipmentId: string,
+    receiverName: string,
+    note?: string,
+  ): Promise<Shipment>;
   getEarnings(operatorId: string): Promise<OperatorEarnings>;
   suggestLanePrice(input: {
     origin: City;
@@ -71,6 +76,7 @@ export type AgentIntent =
   | 'create_invoice'
   | 'get_metrics'
   | 'cancel_load'
+  | 'capture_pod'
   | 'earnings'
   | 'price_suggestion'
   | 'help'

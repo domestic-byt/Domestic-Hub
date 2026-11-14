@@ -22,6 +22,7 @@ const HELP_TEXT = [
   '- Cancel: "cancel load <id>"',
   '- Earnings: "how much have I earned?"',
   '- Pricing: "what price for 20 tons from Jimma to Addis Ababa?"',
+  '- Proof of delivery: "confirm delivery received by <name>"',
 ].join('\n');
 
 const UNKNOWN_TEXT = "I didn't catch that. " + HELP_TEXT;
@@ -79,6 +80,8 @@ export class DomesticAgent {
           return await this.reportMetrics();
         case 'cancel_load':
           return await this.cancelLoad(message, memory);
+        case 'capture_pod':
+          return await this.capturePod(message, memory);
         case 'earnings':
           return await this.reportEarnings(message, ctx, memory);
         case 'price_suggestion':
@@ -319,6 +322,32 @@ export class DomesticAgent {
     return {
       reply: `Load ${load.id} cancelled. The truck is free again and can take return loads near its current location.`,
       data: load,
+    };
+  }
+
+  private async capturePod(message: string, memory: AgentMemoryState) {
+    const slots = extractSlots(message);
+    const shipmentId =
+      slots.ids[0] ?? memory.lastShipmentId ?? (await this.store.findLatestShipment())?.id;
+    if (!shipmentId) {
+      return {
+        reply:
+          'Which shipment? Share the shipment id, or track one first \u2014 e.g. "where is my shipment <id>".',
+      };
+    }
+    const nameMatch = /(?:received\s+by|by)\s+([A-Za-z][A-Za-z\s'.-]{1,40})/i.exec(message);
+    const receiverName = nameMatch?.[1]?.trim();
+    if (!receiverName) {
+      return {
+        reply:
+          'Who received the cargo? Include the receiver name \u2014 e.g. "confirm delivery received by Abebe Kebede".',
+      };
+    }
+    const shipment = await this.store.capturePod(shipmentId, receiverName);
+    memory.lastShipmentId = shipment.id;
+    return {
+      reply: `Proof of delivery recorded for shipment ${shipment.id} \u2014 received by ${receiverName}.`,
+      data: shipment,
     };
   }
 

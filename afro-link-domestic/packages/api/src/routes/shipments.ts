@@ -67,6 +67,21 @@ export async function shipmentRoutes(app: FastifyInstance, store: MarketplaceSto
     );
   });
 
+  app.post('/shipments/:id/pod', async (request, reply) => {
+    if (guard(request, reply, 'operator', 'admin')) return;
+    const { id } = request.params as { id: string };
+    const body = request.body as { receiverName?: unknown; note?: unknown } | null;
+    if (typeof body?.receiverName !== 'string' || body.receiverName.trim() === '') {
+      return reply.code(422).send({ errors: ['receiverName is required.'] });
+    }
+    const note = typeof body?.note === 'string' ? body.note : undefined;
+    return run(
+      reply,
+      () => store.capturePod(id, body!.receiverName as string, note),
+      201,
+    );
+  });
+
   app.get('/shipments/:id/tracking', async (request, reply) => {
     const { id } = request.params as { id: string };
     return run(reply, () => store.getTracking(id));

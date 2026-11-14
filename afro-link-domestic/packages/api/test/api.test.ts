@@ -168,6 +168,21 @@ describe('marketplace api', async () => {
     expect(deliveredOperator.currentCity).toEqual(addis);
     expect(deliveredOperator.lastDropOffCity).toEqual(addis);
 
+    const podRes = await app.inject({
+      method: 'POST',
+      url: `/shipments/${shipment.id}/pod`,
+      payload: { receiverName: 'Abebe Kebede', note: 'Offloaded at the warehouse gate' },
+    });
+    expect(podRes.statusCode).toBe(201);
+    expect(podRes.json().pod).toMatchObject({ receiverName: 'Abebe Kebede' });
+
+    const missingPod = await app.inject({
+      method: 'POST',
+      url: `/shipments/${shipment.id}/pod`,
+      payload: { note: 'no receiver' },
+    });
+    expect(missingPod.statusCode).toBe(422);
+
     const invoiceRes = await app.inject({
       method: 'POST',
       url: '/invoices',
@@ -202,6 +217,51 @@ describe('marketplace api', async () => {
     expect(metrics.vat.invoiceCount).toBeGreaterThanOrEqual(1);
     expect(metrics.vat.totalVatEtb).toBeGreaterThanOrEqual(6000);
     expect(metrics.vat.totalWithVatEtb).toBeGreaterThanOrEqual(46000);
+  });
+
+  it('blocks proof of delivery on shipments that are not delivered', async () => {
+    const app = await buildServer();
+    const addis = { name: 'Addis Ababa', lat: 9.03, lon: 38.74 };
+    const operatorRes = await app.inject({
+      method: 'POST',
+      url: '/operators',
+      payload: {
+        name: 'POD Trucks',
+        phone: '+251911009988',
+        truckPlate: 'AA-99117',
+        capacityTons: 30,
+        currentCity: addis,
+      },
+    });
+    const operator = operatorRes.json();
+    const loadRes = await app.inject({
+      method: 'POST',
+      url: '/loads',
+      payload: {
+        shipperId: 'shipper-pod',
+        origin: addis,
+        destination: { name: 'Adama', lat: 8.54, lon: 39.27 },
+        weightTons: 10,
+        offeredPriceEtb: 15000,
+      },
+    });
+    const load = loadRes.json();
+    const shipmentRes = await app.inject({
+      method: 'POST',
+      url: '/shipments',
+      payload: { loadId: load.id, operatorId: operator.id },
+    });
+    const shipment = shipmentRes.json();
+
+    const podRes = await app.inject({
+      method: 'POST',
+      url: `/shipments/${shipment.id}/pod`,
+      payload: { receiverName: 'Too Early' },
+    });
+    expect(podRes.statusCode).toBe(409);
+    expect(podRes.json().error).toMatch(/delivered/i);
+
+    await app.close();
   });
 
   it('cancels an assigned load and frees the operator', async () => {

@@ -410,6 +410,8 @@ function DriverPanel({ t }: { t: Strings }) {
   const [returnLoads, setReturnLoads] = useState<ReturnLoadMatch[] | null>(null);
   const [earningsOperator, setEarningsOperator] = useState('');
   const [earnings, setEarnings] = useState<OperatorEarnings | null>(null);
+  const [podForm, setPodForm] = useState({ shipmentId: '', receiverName: '', note: '' });
+  const [podSaved, setPodSaved] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -464,6 +466,23 @@ function DriverPanel({ t }: { t: Strings }) {
       setReturnLoads(await api.getReturnLoads(returnOperator));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function capture(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setPodSaved(false);
+    try {
+      await api.capturePod(
+        podForm.shipmentId.trim(),
+        podForm.receiverName,
+        podForm.note || undefined,
+      );
+      setPodSaved(true);
+      setPodForm({ shipmentId: '', receiverName: '', note: '' });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -638,6 +657,35 @@ function DriverPanel({ t }: { t: Strings }) {
           </em>
         </div>
       )}
+
+      <h2>{t.podHeading}</h2>
+      <form onSubmit={capture} className="card row">
+        <label>
+          {t.podShipment}
+          <input
+            value={podForm.shipmentId}
+            onChange={(e) => setPodForm({ ...podForm, shipmentId: e.target.value })}
+          />
+        </label>
+        <label>
+          {t.podReceiver}
+          <input
+            value={podForm.receiverName}
+            onChange={(e) => setPodForm({ ...podForm, receiverName: e.target.value })}
+          />
+        </label>
+        <label>
+          {t.podNote}
+          <input
+            value={podForm.note}
+            onChange={(e) => setPodForm({ ...podForm, note: e.target.value })}
+          />
+        </label>
+        <button type="submit" disabled={!podForm.shipmentId || !podForm.receiverName}>
+          {t.podCapture}
+        </button>
+      </form>
+      {podSaved && <p className="auth-ok">{t.podSaved}</p>}
 
       <h2>{t.advances}</h2>
       {advances.length === 0 && <p>{t.noAdvances}</p>}
