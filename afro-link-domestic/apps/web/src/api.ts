@@ -1,3 +1,4 @@
+import { enqueue } from './outbox';
 import type {
   AgentResult,
   City,
@@ -61,11 +62,20 @@ async function request<T>(path: string, method: string, body?: unknown): Promise
   const headers: Record<string, string> = {};
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (authToken) headers.authorization = `Bearer ${authToken}`;
-  const res = await fetch(apiUrl(path), {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(apiUrl(path), {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    if (method === 'POST') {
+      enqueue(path, body);
+      throw new ApiError(0, 'You are offline — the request was queued and will sync automatically.');
+    }
+    throw new ApiError(0, 'You are offline.');
+  }
   const payload = await res.json().catch(() => null);
   if (!res.ok) {
     const p = payload as { error?: string; errors?: string[] } | null;
@@ -118,6 +128,8 @@ export const api = {
 
   createInvoice: (shipmentId: string, shipperTin: string, operatorTin: string) =>
     request<VatInvoice>('/invoices', 'POST', { shipmentId, shipperTin, operatorTin }),
+
+  replay: (path: string, body: unknown) => request(path, 'POST', body),
 
   chat: (message: string, ctx: { shipperId?: string; operatorId?: string } = {}) =>
     request<AgentResult>('/agent/chat', 'POST', {

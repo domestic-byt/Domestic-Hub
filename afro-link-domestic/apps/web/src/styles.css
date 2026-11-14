@@ -82,6 +82,11 @@ header .am {
   font-size: 0.85rem;
 }
 
+.offline-badge {
+  color: var(--accent-2);
+  font-size: 0.85rem;
+}
+
 .auth-hint {
   color: var(--muted);
   font-size: 0.85rem;

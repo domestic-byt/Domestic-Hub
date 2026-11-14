@@ -59,6 +59,23 @@ Canonical domain: **https://afro-link.domestic.com.et** (Afro-Link Domestic, par
 - To attach the domain on Vercel (where this repo previews deploy): Vercel dashboard → project **domestic-hub** → Settings → Domains → add `afro-link.domestic.com.et`; then at the DNS host for `domestic.com.et`, create the record Vercel shows (typically `CNAME afro-link → cname.vercel-dns.com`).
 - Health check: `GET /health` reports `{ status, service, domain }`.
 
+## Quick start with Docker
+
+```bash
+cd afro-link-domestic
+docker compose up --build
+```
+
+That starts PostgreSQL 16 (with a persistent volume) and the API on `http://127.0.0.1:3000`, connected via `DATABASE_URL` — no local Postgres needed. The API creates its schema on startup. For the web dashboard, run `npm run dev:web` from `afro-link-domestic/` (proxies `/api` to the container). Extra env vars (`MISTRAL_API_KEY`, `AUTH_SECRET`, gateway credentials) can be set in an `.env` file next to `docker-compose.yml`.
+
+## Offline-first driver PWA
+
+`apps/web` is installable and works on patchy Ethiopian mobile networks:
+
+- **Installable app**: web manifest + SVG icon + theme color; the browser offers "Add to home screen".
+- **Service worker** (`public/sw.js`): cache-first app shell with versioned cache cleanup; navigations fall back to the cached `index.html` when offline. Registered in production builds only.
+- **Outbox sync** (`src/outbox.ts`): POST requests that fail due to network loss (tracking events, advance requests, load posts) are queued in `localStorage` and replayed automatically when connectivity returns. The header shows an offline badge with the queued count (localized EN/አማ).
+
 ## Persistence
 
 The API stores all marketplace state through the `MarketplaceRepo` interface:

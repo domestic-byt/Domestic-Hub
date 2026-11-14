@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, getAuthToken, setAuthToken } from './api';
+import { flushOutbox, outboxCount } from './outbox';
 import { Lang, loadLang, saveLang, STRINGS, Strings } from './i18n';
 import { useVoiceInput } from './useVoiceInput';
 import type { Load, OperatorMatch, ReturnLoadMatch, TrackingEvent } from './types';
@@ -47,7 +48,31 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('shipper');
   const [lang, setLang] = useState<Lang>(loadLang);
   const [token, setToken] = useState(getAuthToken() ?? '');
+  const [online, setOnline] = useState(true);
+  const [pending, setPending] = useState(0);
   const t = STRINGS[lang];
+
+  useEffect(() => {
+    setOnline(navigator.onLine);
+    const sync = async () => {
+      if (navigator.onLine) {
+        await flushOutbox((item) => api.replay(item.path, item.body));
+      }
+      setPending(outboxCount());
+    };
+    void sync();
+    const goOnline = () => {
+      setOnline(true);
+      void sync();
+    };
+    const goOffline = () => setOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
 
   const applyToken = (value: string) => {
     setToken(value);
@@ -84,6 +109,12 @@ export default function App() {
             onChange={(e) => applyToken(e.target.value)}
           />
           {token ? <span className="auth-ok">{t.signedIn}</span> : <span className="auth-hint">{t.guestMode}</span>}
+          {(!online || pending > 0) && (
+            <span className={online ? 'auth-ok' : 'offline-badge'}>
+              {!online && t.offline}
+              {online && pending > 0 && `${pending} ${t.queued}`}
+            </span>
+          )}
         </div>
         <nav>
           {(
