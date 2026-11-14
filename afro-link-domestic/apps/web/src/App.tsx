@@ -782,7 +782,7 @@ function AgentPanel({ t, lang }: { t: Strings; lang: Lang }) {
     setInput('');
     setMessages((m) => [...m, { role: 'user', content: message }]);
     try {
-      const result = await api.chat(message);
+      const result = await api.chat(message, {}, lang);
       setMessages((m) => [...m, { role: 'assistant', content: result.reply }]);
     } catch (err) {
       setMessages((m) => [

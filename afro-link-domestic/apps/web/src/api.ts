@@ -146,10 +146,15 @@ export const api = {
 
   replay: (path: string, body: unknown) => request(path, 'POST', body),
 
-  chat: (message: string, ctx: { shipperId?: string; operatorId?: string } = {}) =>
+  chat: (
+    message: string,
+    ctx: { shipperId?: string; operatorId?: string } = {},
+    lang?: string,
+  ) =>
     request<AgentResult>('/agent/chat', 'POST', {
       message,
       sessionId: getSessionId(),
+      ...(lang ? { lang } : {}),
       ...ctx,
     }),
 };

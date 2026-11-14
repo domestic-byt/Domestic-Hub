@@ -7,7 +7,7 @@ Asset-light, AI-powered freight marketplace connecting Ethiopian shippers with i
 ```
 packages/
   shared/   Domain core: types, geo, Ethiopian cities, load-matching engine, Ethiopian VAT, fuel-advance rules, payout port, DomainError
-  agent/    Domestic AI Agent: EN/AM intent detection, slot extraction, tool-calling agent core, LLM adapter interface
+  agent/    Domestic AI Agent: six-language intent detection (EN/AM/OM/SO/TI/SW), slot extraction, tool-calling agent core, LLM adapter interface
   api/      Fastify marketplace API (loads, matches, shipments, tracking, advances, invoices, /agent/chat)
 apps/
   web/      React + Vite dashboard: shipper (post loads, matches, assign), driver (register, fuel advances), live tracking, AI agent chat (EN/AM)
@@ -43,7 +43,7 @@ The web app reads `VITE_API_BASE` at build time (defaults to `/api`, proxied in 
 | GET/POST | `/advances` | Fuel advance requests (Telebirr / CBE Birr) |
 | POST | `/advances/:id/transition` | approve → disburse → recover state machine |
 | GET/POST | `/invoices` | VAT invoices (15% Ethiopian VAT, TIN fields) |
-| POST | `/agent/chat` | Domestic AI Agent: conversational posting, matching, advances, tracking, invoicing (EN/AM) |
+| POST | `/agent/chat` | Domestic AI Agent: conversational posting, matching, advances, tracking, invoicing; accepts `lang` so replies come back in the UI language |
 | GET | `/metrics` | Marketplace KPIs: loads/shipments funnel, avg deadhead km, zero-deadhead share, disbursed advances by channel, VAT totals (admin-only when auth is enabled) |
 | GET | `/markets/prices` | Lane price benchmark: median ETB per ton-km from delivered loads (lane first, network fallback) → suggested price with ±10% range |
 | POST | `/webhooks` | Register an outbound webhook (`{url, events?, secret?}`); receives signed shipment events |
@@ -57,7 +57,7 @@ The web app reads `VITE_API_BASE` at build time (defaults to `/api`, proxied in 
 - **Driver earnings** (`GET /operators/:id/earnings`) total the value of delivered shipments, subtract outstanding fuel advances (requested/approved/disbursed), and report the net position per operator.
 - **Fuel advances** are capped at 20% of the load price, require an assigned load, one active advance per operator, and follow a strict state machine (`requested → approved → disbursed → recovered`, with `rejected`/`defaulted` terminal states). `disburse` and `recover` execute through a **`PayoutAdapter`** (Telebirr / CBE Birr); a failed payout blocks the transition and the advance keeps its status. Simulated adapters ship today (`TB-SIM-*` / `CBE-SIM-*` references) — real gateways implement the same two-method interface.
 - **VAT invoices** apply the 15% Ethiopian VAT rate and carry shipper/operator TINs for compliance.
-- **Domestic AI Agent** detects intents in English and Amharic (post load, find trucks, assign, return loads, fuel advance, track, invoice, business report), extracts slots (cities from an 17-city Ethiopian gazetteer, tons, birr amounts, channels, ids), executes through the same `AgentStore` the HTTP API uses, remembers each conversation session (pass `sessionId`; slots and ids from earlier turns fill in follow-ups like “post another 15 tons” or “assign the top match”), answers “show me the business report” / “ሪፖርት” with the live marketplace snapshot, and polishes replies through a pluggable `LlmAdapter`. Set `MISTRAL_API_KEY` to enable the Mistral adapter (`MistralLlmAdapter`, Mistral chat completions API); if the LLM call fails or the key is absent, the agent falls back to its deterministic replies.
+- **Domestic AI Agent** detects intents in English, Amharic (አማርኛ), Oromiffa (Afaan Oromoo), Aff-Somali (Soomaali), Tigrinya (ትግርኛ) and Kiswahili (post load, find trucks, assign, return loads, fuel advance, track, invoice, business report), extracts slots (cities from an 17-city Ethiopian gazetteer, tons, birr amounts, channels, ids), executes through the same `AgentStore` the HTTP API uses, remembers each conversation session (pass `sessionId`; slots and ids from earlier turns fill in follow-ups like “post another 15 tons” or “assign the top match”), answers “show me the business report” / “ሪፖርት” with the live marketplace snapshot, and polishes replies through a pluggable `LlmAdapter`. Pass `lang` on `/agent/chat` (`am`, `om`, `so`, `ti`, `sw`) and the LLM adapter replies in that language; without it the agent answers in English. Set `MISTRAL_API_KEY` to enable the Mistral adapter (`MistralLlmAdapter`, Mistral chat completions API); if the LLM call fails or the key is absent, the agent falls back to its deterministic replies.
 
 ## Domain & deployment
 

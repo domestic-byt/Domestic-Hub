@@ -292,6 +292,51 @@ describe('detectIntent', () => {
     expect(detectIntent('ደረሰኝ ስጠኝ')).toBe('create_invoice');
     expect(detectIntent('እርዳታ አስፈልገኝ')).toBe('help');
   });
+
+  it('detects Oromiffa intents', () => {
+    expect(detectIntent('kaffaltii dursee gaafadhu')).toBe('request_advance');
+    expect(detectIntent('hordoffii qabna?')).toBe('track_shipment');
+    expect(detectIntent('fe\'aa haqi')).toBe('cancel_load');
+    expect(detectIntent('galii koo')).toBe('earnings');
+    expect(detectIntent('gatiin meeqa?')).toBe('price_suggestion');
+    expect(detectIntent('konkobaataa argadhu')).toBe('find_matches');
+    expect(detectIntent('tirakoobii naaf hiiki')).toBe('get_metrics');
+    expect(detectIntent('gargaarsa barbaada')).toBe('help');
+  });
+
+  it('detects Somali intents', () => {
+    expect(detectIntent('malipo ya mbele i si')).toBe('request_advance');
+    expect(detectIntent('raadraac shilinka')).toBe('track_shipment');
+    expect(detectIntent('jooji rarka')).toBe('cancel_load');
+    expect(detectIntent('dakhligayga')).toBe('earnings');
+    expect(detectIntent('qiimaha waa muxuu?')).toBe('price_suggestion');
+    expect(detectIntent('babuur la heli karo')).toBe('find_matches');
+    expect(detectIntent('mzigo oo cusub')).toBe('post_load');
+    expect(detectIntent('caawimo')).toBe('help');
+  });
+
+  it('detects Tigrinya intents', () => {
+    expect(detectIntent('ቅድሚ ክፍሊት ግባ')).toBe('request_advance');
+    expect(detectIntent('ክትታል ኣልዋ')).toBe('track_shipment');
+    expect(detectIntent('ስረዝ ኣውዕ')).toBe('cancel_load');
+    expect(detectIntent('ወሰኽይ')).toBe('earnings');
+    expect(detectIntent('በዕሊ ብልዕልዋ')).toBe('price_suggestion');
+    expect(detectIntent('ምድብ ኣባዕ')).toBe('assign_truck');
+    expect(detectIntent('ሕበረታ ኣውዕ')).toBe('get_metrics');
+    expect(detectIntent('ሓገዝ ኣባዕ')).toBe('help');
+  });
+
+  it('detects Swahili intents', () => {
+    expect(detectIntent('omba mafuta')).toBe('request_advance');
+    expect(detectIntent('fuatilia mzigo')).toBe('track_shipment');
+    expect(detectIntent('ghairi mzigo')).toBe('cancel_load');
+    expect(detectIntent('mapato yangu')).toBe('earnings');
+    expect(detectIntent('bei gani?')).toBe('price_suggestion');
+    expect(detectIntent('panga dereva')).toBe('assign_truck');
+    expect(detectIntent('weka mzigo mpya')).toBe('post_load');
+    expect(detectIntent('vipimo vya biashara')).toBe('get_metrics');
+    expect(detectIntent('msaada tafadhali')).toBe('help');
+  });
 });
 
 describe('extractSlots', () => {

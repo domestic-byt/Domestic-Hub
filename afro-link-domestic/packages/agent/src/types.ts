@@ -82,6 +82,7 @@ export interface AgentContext {
   operatorId?: string;
   shipperTin?: string;
   operatorTin?: string;
+  lang?: string;
 }
 
 export interface AgentResult {

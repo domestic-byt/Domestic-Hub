@@ -43,7 +43,7 @@ export class DomesticAgent {
     if (this.llm) {
       try {
         reply = await this.llm.complete({
-          system: this.systemPrompt(intent, outcome.data),
+          system: this.systemPrompt(intent, outcome.data, ctx.lang),
           messages: [{ role: 'user', content: message }],
         });
       } catch {
@@ -389,13 +389,28 @@ export class DomesticAgent {
     };
   }
 
-  private systemPrompt(intent: AgentIntent, data: unknown): string {
+  private systemPrompt(intent: AgentIntent, data: unknown, lang?: string): string {
+    const language =
+      lang === 'am'
+        ? 'Amharic'
+        : lang === 'om'
+          ? 'Afaan Oromoo'
+          : lang === 'so'
+            ? 'Somali'
+            : lang === 'ti'
+              ? 'Tigrinya'
+              : lang === 'sw'
+                ? 'Swahili'
+                : undefined;
     return [
       'You are the Domestic AI Agent for Afro-Link Domestic, an Ethiopian freight marketplace inside DomesticHub.',
       'A deterministic tool already executed the user request.',
       `Intent: ${intent}.`,
       `Structured result JSON: ${JSON.stringify(data ?? null)}`,
-      'Write a short, friendly reply in English or Amharic presenting the result. Never invent ids, prices, or statuses.',
+      language
+        ? `Write a short, friendly reply in ${language} presenting the result.`
+        : 'Write a short, friendly reply in English or Amharic presenting the result.',
+      'Never invent ids, prices, or statuses.',
     ].join('\n');
   }
 }
