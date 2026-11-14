@@ -3,6 +3,7 @@ import {
   City,
   FuelAdvance,
   Load,
+  MarketplaceMetrics,
   OperatorMatch,
   ReturnLoadMatch,
   Shipment,
@@ -43,6 +44,7 @@ export interface AgentStore {
   findShipment(shipmentId: string): Promise<Shipment | undefined>;
   findLatestShipment(): Promise<Shipment | undefined>;
   findLatestLoad(): Promise<Load | undefined>;
+  getMetrics(): Promise<MarketplaceMetrics>;
 }
 
 export interface ChatMessage {
@@ -58,6 +60,7 @@ export type AgentIntent =
   | 'request_advance'
   | 'track_shipment'
   | 'create_invoice'
+  | 'get_metrics'
   | 'help'
   | 'unknown';
 

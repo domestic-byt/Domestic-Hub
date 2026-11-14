@@ -83,6 +83,19 @@ export interface VatInvoice {
   issuedAt: string;
 }
 
+export interface MarketplaceMetrics {
+  loads: { total: number; open: number; assigned: number; delivered: number };
+  shipments: { total: number; delivered: number };
+  avgDeadheadKm: number;
+  zeroDeadheadShare: number;
+  advances: {
+    total: number;
+    disbursedEtb: number;
+    byChannel: { telebirr: number; cbe_birr: number };
+  };
+  vat: { invoiceCount: number; totalVatEtb: number; totalWithVatEtb: number };
+}
+
 export interface AgentResult {
   intent: string;
   reply: string;

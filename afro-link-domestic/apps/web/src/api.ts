@@ -4,6 +4,7 @@ import type {
   City,
   FuelAdvance,
   Load,
+  MarketplaceMetrics,
   Operator,
   OperatorMatch,
   ReturnLoadMatch,
@@ -128,6 +129,8 @@ export const api = {
 
   createInvoice: (shipmentId: string, shipperTin: string, operatorTin: string) =>
     request<VatInvoice>('/invoices', 'POST', { shipmentId, shipperTin, operatorTin }),
+
+  getMetrics: () => request<MarketplaceMetrics>('/metrics', 'GET'),
 
   replay: (path: string, body: unknown) => request(path, 'POST', body),
 

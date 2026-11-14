@@ -1,6 +1,10 @@
 import { AgentIntent } from './types';
 
 const PATTERNS: Array<[AgentIntent, RegExp]> = [
+  [
+    'get_metrics',
+    /metrics|kpis?|dashboard|business\s*(?:report|overview)|report|ሪፖርት|ግምገማ/i,
+  ],
   ['request_advance', /advance|fuel|telebirr|cbe\s*birr|ነዳጅ|ቅድመ\s*ክፍያ/i],
   ['track_shipment', /where|track|status|የት|ምን\s*ሁኔታ/i],
   ['create_invoice', /invoice|vat|ደረሰኝ/i],

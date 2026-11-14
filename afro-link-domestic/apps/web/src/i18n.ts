@@ -9,6 +9,7 @@ const EN = {
   tabDriver: 'Driver',
   tabTrack: 'Tracking',
   tabAgent: 'AI Agent',
+  tabMetrics: 'Metrics',
   postLoad: 'Post a load',
   shipperId: 'Shipper ID',
   from: 'From',
@@ -55,6 +56,18 @@ const EN = {
   voiceUnsupported: 'Voice input is not supported in this browser.',
   greeting:
     'Selam! I am the Domestic AI Agent. Try: "Post 20 tons of coffee from Jimma to Addis Ababa for 40000 birr"',
+  metricsHeading: 'Marketplace metrics',
+  refresh: 'Refresh',
+  loadsLabel: 'Loads',
+  open: 'open',
+  assigned: 'assigned',
+  delivered: 'delivered',
+  shipmentsLabel: 'Shipments',
+  avgDeadhead: 'Avg deadhead (km)',
+  zeroDeadheadShare: 'Trips with < 25 km deadhead',
+  advancesDisbursed: 'Advances disbursed (ETB)',
+  vatCollected: 'VAT invoiced (ETB)',
+  metricsAdminNote: 'Metrics are admin-only — sign in with an admin SSO token.',
 } as const;
 
 const AM: Record<keyof typeof EN, string> = {
@@ -66,6 +79,7 @@ const AM: Record<keyof typeof EN, string> = {
   tabDriver: 'ሹፌር',
   tabTrack: 'ክትትል',
   tabAgent: 'AI ወኪል',
+  tabMetrics: 'ሊፖርት',
   postLoad: 'ጭነት ያስገቡ',
   shipperId: 'የአከራቢ መለያ',
   from: 'ከ',
@@ -111,6 +125,18 @@ const AM: Record<keyof typeof EN, string> = {
   listening: 'እየሰማሁ ነው…',
   voiceUnsupported: 'በዚህ አሳሽ ድምፅ አይደገፍም።',
   greeting: 'ሰላም! የዶምስቲክ AI ወኪል ነኝ። ለምሳሌ፦ "20 ቶን ቡና ከጅማ ወደ አዲስ አበባ ለ40000 ብር ላክ"',
+  metricsHeading: 'የገበያ አመልካ፾ች',
+  refresh: 'እንደጌና አድስ',
+  loadsLabel: 'ጭነቶች',
+  open: 'ክፍት',
+  assigned: 'የተመደበ',
+  delivered: 'ደርሷል',
+  shipmentsLabel: 'ጉዞዎች',
+  avgDeadhead: 'አማካይ ባዶ ኪ.ሜ',
+  zeroDeadheadShare: 'ከ25 ኪ.ሜ ባነሱ ባዶ ጉዞዎች',
+  advancesDisbursed: 'የተከፈሉ ክፍያዎች (ETB)',
+  vatCollected: 'የተጠየቀ ቫት (ETB)',
+  metricsAdminNote: 'ሊፖርቱ ለአስተዳዳሪ ብቻ ነው — በአስተዳዳሪ ቶከን ይግቡ።',
 };
 
 export const STRINGS: Record<Lang, Record<keyof typeof EN, string>> = { en: EN, am: AM };

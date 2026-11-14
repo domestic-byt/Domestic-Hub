@@ -18,6 +18,7 @@ const HELP_TEXT = [
   '- Fuel advances: "request an 8000 birr telebirr advance" (Telebirr or CBE Birr)',
   '- Track: "where is my shipment <id>?"',
   '- Invoices: "issue the VAT invoice" (15% Ethiopian VAT)',
+  '- Metrics: "show me the business report"',
 ].join('\n');
 
 const UNKNOWN_TEXT = "I didn't catch that. " + HELP_TEXT;
@@ -71,6 +72,8 @@ export class DomesticAgent {
           return await this.trackShipment(message, memory);
         case 'create_invoice':
           return await this.createInvoice(message, ctx, memory);
+        case 'get_metrics':
+          return await this.reportMetrics();
         case 'help':
           return { reply: HELP_TEXT };
         default:
@@ -291,6 +294,22 @@ export class DomesticAgent {
     return {
       reply: `VAT invoice ${invoice.id}: subtotal ${invoice.subtotalEtb} ETB + VAT ${invoice.vatEtb} ETB = ${invoice.totalEtb} ETB.`,
       data: invoice,
+    };
+  }
+
+  private async reportMetrics() {
+    const m = await this.store.getMetrics();
+    const share = Math.round(m.zeroDeadheadShare * 100);
+    return {
+      reply: [
+        '📊 Marketplace snapshot:',
+        `- Loads: ${m.loads.total} total (${m.loads.open} open, ${m.loads.assigned} assigned, ${m.loads.delivered} delivered)`,
+        `- Shipments: ${m.shipments.total} total, ${m.shipments.delivered} delivered`,
+        `- Empty-trip cutting: avg deadhead ${m.avgDeadheadKm} km, ${share}% of trips under 25 km`,
+        `- Fuel advances: ${m.advances.total} requested, ${m.advances.disbursedEtb} ETB disbursed (telebirr ${m.advances.byChannel.telebirr}, cbe_birr ${m.advances.byChannel.cbe_birr})`,
+        `- VAT: ${m.vat.invoiceCount} invoices, ${m.vat.totalVatEtb} ETB VAT, ${m.vat.totalWithVatEtb} ETB total`,
+      ].join('\n'),
+      data: m,
     };
   }
 

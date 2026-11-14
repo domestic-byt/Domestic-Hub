@@ -8,6 +8,7 @@ import {
   Shipment,
   TrackingEvent,
   TruckOperator,
+  MarketplaceMetrics,
   VatInvoice,
   computeVat,
   rankOperatorsForLoad,
@@ -154,6 +155,39 @@ class FakeStore implements AgentStore {
     return [...this.loads.values()].at(-1);
   }
 
+  async getMetrics(): Promise<MarketplaceMetrics> {
+    const loads = [...this.loads.values()];
+    const shipments = [...this.shipments.values()];
+    const advances = this.advances;
+    const invoices = [...this.invoices.values()];
+    return {
+      loads: {
+        total: loads.length,
+        open: loads.filter((l) => l.status === 'open').length,
+        assigned: loads.filter((l) => l.status === 'assigned').length,
+        delivered: loads.filter((l) => l.status === 'delivered').length,
+      },
+      shipments: {
+        total: shipments.length,
+        delivered: shipments.filter((s) => s.status === 'delivered').length,
+      },
+      avgDeadheadKm: 0,
+      zeroDeadheadShare: 1,
+      advances: {
+        total: advances.length,
+        disbursedEtb: advances
+          .filter((a) => a.status === 'disbursed' || a.status === 'recovered')
+          .reduce((sum, a) => sum + a.amountEtb, 0),
+        byChannel: { telebirr: 0, cbe_birr: 0 },
+      },
+      vat: {
+        invoiceCount: invoices.length,
+        totalVatEtb: invoices.reduce((sum, i) => sum + i.vatEtb, 0),
+        totalWithVatEtb: invoices.reduce((sum, i) => sum + i.totalEtb, 0),
+      },
+    };
+  }
+
   deliver(shipmentId: string): void {
     const shipment = this.shipments.get(shipmentId)!;
     this.shipments.set(shipmentId, { ...shipment, status: 'delivered' });
@@ -184,6 +218,8 @@ describe('detectIntent', () => {
     expect(detectIntent('request an 8000 birr telebirr advance')).toBe('request_advance');
     expect(detectIntent('where is my shipment?')).toBe('track_shipment');
     expect(detectIntent('issue the VAT invoice')).toBe('create_invoice');
+    expect(detectIntent('show me the business report')).toBe('get_metrics');
+    expect(detectIntent('ሪፖርት አሳዩኝ')).toBe('get_metrics');
     expect(detectIntent('help')).toBe('help');
     expect(detectIntent('xyzzy')).toBe('unknown');
   });
@@ -357,6 +393,19 @@ describe('DomesticAgent', () => {
     });
     expect(result.intent).toBe('create_invoice');
     expect(result.reply).toContain('46000 ETB');
+  });
+
+  it('reports marketplace metrics', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+    await agent.handle('Post 20 tons from Jimma to Addis Ababa for 40000 birr');
+    await agent.handle('assign the top match');
+
+    const result = await agent.handle('show me the business report');
+    expect(result.intent).toBe('get_metrics');
+    expect(result.reply).toContain('Loads: 1 total (0 open, 1 assigned, 0 delivered)');
+    expect(result.reply).toContain('Shipments: 1 total, 0 delivered');
+    expect(result.reply).toContain('avg deadhead');
   });
 
   it('uses the LLM adapter for the reply when provided', async () => {

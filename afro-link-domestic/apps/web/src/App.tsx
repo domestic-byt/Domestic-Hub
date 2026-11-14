@@ -3,7 +3,7 @@ import { api, getAuthToken, setAuthToken } from './api';
 import { flushOutbox, outboxCount } from './outbox';
 import { Lang, loadLang, saveLang, STRINGS, Strings } from './i18n';
 import { useVoiceInput } from './useVoiceInput';
-import type { Load, OperatorMatch, ReturnLoadMatch, TrackingEvent } from './types';
+import type { Load, MarketplaceMetrics, OperatorMatch, ReturnLoadMatch, TrackingEvent } from './types';
 
 const CITIES = [
   'Addis Ababa',
@@ -42,7 +42,7 @@ function city(name: string) {
   return { name, ...coords };
 }
 
-type Tab = 'shipper' | 'driver' | 'track' | 'agent';
+type Tab = 'shipper' | 'driver' | 'track' | 'agent' | 'metrics';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('shipper');
@@ -123,6 +123,7 @@ export default function App() {
               ['driver', t.tabDriver],
               ['track', t.tabTrack],
               ['agent', t.tabAgent],
+              ['metrics', t.tabMetrics],
             ] as Array<[Tab, string]>
           ).map(([id, label]) => (
             <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
@@ -136,6 +137,7 @@ export default function App() {
         {tab === 'driver' && <DriverPanel t={t} />}
         {tab === 'track' && <TrackPanel t={t} />}
         {tab === 'agent' && <AgentPanel t={t} lang={lang} />}
+        {tab === 'metrics' && <MetricsPanel t={t} />}
       </main>
     </div>
   );
@@ -587,6 +589,78 @@ function TrackPanel({ t }: { t: Strings }) {
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+function MetricsPanel({ t }: { t: Strings }) {
+  const [metrics, setMetrics] = useState<MarketplaceMetrics | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      setMetrics(await api.getMetrics());
+    } catch (err) {
+      setMetrics(null);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return (
+    <section>
+      <h2>
+        {t.metricsHeading}{' '}
+        <button onClick={() => void load()} disabled={busy}>
+          {t.refresh}
+        </button>
+      </h2>
+      <ErrorBox error={error} />
+      {metrics && (
+        <div className="metrics-grid">
+          <div className="card metric">
+            <strong>{metrics.loads.total}</strong>
+            <span>{t.loadsLabel}</span>
+            <em>
+              {metrics.loads.open} {t.open} · {metrics.loads.assigned} {t.assigned} ·{' '}
+              {metrics.loads.delivered} {t.delivered}
+            </em>
+          </div>
+          <div className="card metric">
+            <strong>{metrics.shipments.delivered}</strong>
+            <span>{t.shipmentsLabel}</span>
+            <em>{metrics.shipments.total}</em>
+          </div>
+          <div className="card metric">
+            <strong>{metrics.avgDeadheadKm}</strong>
+            <span>{t.avgDeadhead}</span>
+            <em>{Math.round(metrics.zeroDeadheadShare * 100)}% {t.zeroDeadheadShare}</em>
+          </div>
+          <div className="card metric">
+            <strong>{metrics.advances.disbursedEtb}</strong>
+            <span>{t.advancesDisbursed}</span>
+            <em>
+              telebirr {metrics.advances.byChannel.telebirr} · cbe_birr{' '}
+              {metrics.advances.byChannel.cbe_birr}
+            </em>
+          </div>
+          <div className="card metric">
+            <strong>{metrics.vat.totalVatEtb}</strong>
+            <span>{t.vatCollected}</span>
+            <em>{metrics.vat.invoiceCount} · {metrics.vat.totalWithVatEtb} ETB</em>
+          </div>
+        </div>
+      )}
+      {!metrics && !error && busy && <p className="muted">…</p>}
+      {error && <p className="muted">{t.metricsAdminNote}</p>}
     </section>
   );
 }

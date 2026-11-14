@@ -108,6 +108,9 @@ describe('agent LLM fallback', () => {
     async findLatestLoad(): Promise<undefined> {
       return undefined;
     }
+    async getMetrics(): Promise<never> {
+      throw new Error('not used');
+    }
   }
 
   it('falls back to the deterministic reply when the LLM fails', async () => {
