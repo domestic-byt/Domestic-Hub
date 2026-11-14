@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { enqueue, flushOutbox, loadOutbox, outboxCount, OutboxItem } from './outbox';
+import {
+  enqueue,
+  flushOutbox,
+  loadOutbox,
+  outboxCount,
+  OutboxItem,
+  requestBackgroundSync,
+} from './outbox';
 
 function fakeStorage(): Storage {
   const map = new Map<string, string>();
@@ -63,5 +70,9 @@ describe('outbox', () => {
     const remaining = loadOutbox(store);
     expect(remaining).toHaveLength(1);
     expect(remaining[0]!.path).toBe('/advances');
+  });
+
+  it('is a safe no-op when background sync is unavailable', () => {
+    expect(() => requestBackgroundSync()).not.toThrow();
   });
 });

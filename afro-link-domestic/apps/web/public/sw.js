@@ -19,6 +19,17 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+self.addEventListener('sync', (event) => {
+  if (event.tag !== 'afrolink-flush') return;
+  event.waitUntil(
+    self.clients
+      .matchAll({ includeUncontrolled: true, type: 'window' })
+      .then((clients) =>
+        clients.forEach((client) => client.postMessage({ type: 'flush-outbox' })),
+      ),
+  );
+});
+
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET') return;

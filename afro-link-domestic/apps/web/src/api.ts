@@ -1,4 +1,4 @@
-import { enqueue } from './outbox';
+import { enqueue, requestBackgroundSync } from './outbox';
 import type {
   AgentResult,
   City,
@@ -75,6 +75,7 @@ async function request<T>(path: string, method: string, body?: unknown): Promise
   } catch {
     if (method === 'POST') {
       enqueue(path, body);
+      requestBackgroundSync();
       throw new ApiError(0, 'You are offline — the request was queued and will sync automatically.');
     }
     throw new ApiError(0, 'You are offline.');

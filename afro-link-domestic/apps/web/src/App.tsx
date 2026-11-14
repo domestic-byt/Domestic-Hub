@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, getAuthToken, setAuthToken } from './api';
 import { flushOutbox, outboxCount } from './outbox';
+import { usePwaInstall } from './usePwaInstall';
 import { LANGUAGES, Lang, loadLang, saveLang, STRINGS, Strings } from './i18n';
 import { useVoiceInput } from './useVoiceInput';
 import type {
@@ -60,14 +61,15 @@ export default function App() {
   const [pending, setPending] = useState(0);
   const t = STRINGS[lang];
 
+  const sync = useCallback(async () => {
+    if (navigator.onLine) {
+      await flushOutbox((item) => api.replay(item.path, item.body));
+    }
+    setPending(outboxCount());
+  }, []);
+
   useEffect(() => {
     setOnline(navigator.onLine);
-    const sync = async () => {
-      if (navigator.onLine) {
-        await flushOutbox((item) => api.replay(item.path, item.body));
-      }
-      setPending(outboxCount());
-    };
     void sync();
     const goOnline = () => {
       setOnline(true);
@@ -76,11 +78,27 @@ export default function App() {
     const goOffline = () => setOnline(false);
     window.addEventListener('online', goOnline);
     window.addEventListener('offline', goOffline);
+    const retry = window.setInterval(() => {
+      if (navigator.onLine && outboxCount() > 0) void sync();
+    }, 30000);
+    let onMessage: ((e: MessageEvent) => void) | undefined;
+    if ('serviceWorker' in navigator) {
+      onMessage = (e: MessageEvent) => {
+        if ((e.data as { type?: string } | null)?.type === 'flush-outbox') void sync();
+      };
+      navigator.serviceWorker.addEventListener('message', onMessage);
+    }
     return () => {
+      window.clearInterval(retry);
+      if (onMessage && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', onMessage);
+      }
       window.removeEventListener('online', goOnline);
       window.removeEventListener('offline', goOffline);
     };
-  }, []);
+  }, [sync]);
+
+  const pwa = usePwaInstall();
 
   const applyToken = (value: string) => {
     setToken(value);
@@ -121,6 +139,11 @@ export default function App() {
             onChange={(e) => applyToken(e.target.value)}
           />
           {token ? <span className="auth-ok">{t.signedIn}</span> : <span className="auth-hint">{t.guestMode}</span>}
+          {pwa.canInstall && (
+            <button type="button" className="install-btn" onClick={() => void pwa.install()}>
+              {t.installApp}
+            </button>
+          )}
           {(!online || pending > 0) && (
             <span className={online ? 'auth-ok' : 'offline-badge'}>
               {!online && t.offline}

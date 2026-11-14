@@ -49,6 +49,22 @@ export function enqueue(
   return item;
 }
 
+export const SYNC_TAG = 'afrolink-flush';
+
+interface SyncManagerLike {
+  register(tag: string): Promise<void>;
+}
+
+type SyncCapableRegistration = ServiceWorkerRegistration & { sync?: SyncManagerLike };
+
+export function requestBackgroundSync(): void {
+  if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
+  if (!('serviceWorker' in navigator) || !('SyncManager' in window)) return;
+  navigator.serviceWorker.ready
+    .then((reg) => (reg as SyncCapableRegistration).sync?.register(SYNC_TAG))
+    .catch(() => undefined);
+}
+
 export async function flushOutbox(
   send: (item: OutboxItem) => Promise<unknown>,
   store: Storage | undefined = storage(),

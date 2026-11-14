@@ -53,6 +53,7 @@ const EN = {
   send: 'Send',
   mic: 'Voice input',
   listening: 'Listening…',
+  installApp: 'Install app',
   voiceUnsupported: 'Voice input is not supported in this browser.',
   greeting:
     'Selam! I am the Domestic AI Agent. Try: "Post 20 tons of coffee from Jimma to Addis Ababa for 40000 birr"',
@@ -132,6 +133,7 @@ const AM: Record<keyof typeof EN, string> = {
   send: 'ላክ',
   mic: 'በድምፅ ይናገሩ',
   listening: 'እየሰማሁ ነው…',
+  installApp: 'መተግበሪያውን ይጫኑ',
   voiceUnsupported: 'በዚህ አሳሽ ድምፅ አይደገፍም።',
   greeting: 'ሰላም! የዶምስቲክ AI ወኪል ነኝ። ለምሳሌ፦ "20 ቶን ቡና ከጅማ ወደ አዲስ አበባ ለ40000 ብር ላክ"',
   metricsHeading: 'የገበያ አመልካ፾ች',
@@ -211,6 +213,7 @@ const OM: Record<keyof typeof EN, string> = {
   send: 'Ergi',
   mic: 'Sagalee galchuu',
   listening: 'Dhageeffamaa jira\u2026',
+  installApp: 'App buufadhu',
   voiceUnsupported: 'Galmee sagalee biraawzari kana keessa hin deeggaramu.',
   greeting:
     'Akkam! Ani Aijantii AI Domestic dha. Yaali: "Teetoonii 20 buna Jimma irraa Finfinneetti 40000 birr"',
@@ -290,6 +293,7 @@ const SO: Record<keyof typeof EN, string> = {
   send: 'Dir',
   mic: 'Cod ku geli',
   listening: 'Waa la dhageystayaa\u2026',
+  installApp: 'Ku rakib appka',
   voiceUnsupported: 'Gelinta codku taagero ma laha biraawsarka.',
   greeting:
     'Salaan! Waxaan ahay Wakiilka AI ee Domestic. Isku day: "Toonaan 20 bunn laga Jimma oo lagu socdo Addis Ababa 40000 birr"',
@@ -369,6 +373,7 @@ const TI: Record<keyof typeof EN, string> = {
   send: '\u1230\u12f0\u12f5',
   mic: '\u1903\u120d \u12a3\u12a5\u1271',
   listening: '\u12ed\u1230\u121b\u12d5 \u12a3\u120e\u2026',
+  installApp: 'መተግበሪያ ተክእ',
   voiceUnsupported: '\u1218\u12a5\u1270\u12ca \u1903\u120d \u12a3\u1265\u12da \u1265\u122b\u12cd\u12d8\u122d \u12a3\u12ed\u12f5\u130d\u134d\u1295\u1362',
   greeting:
     '\u1230\u120b\u121d! \u12a3\u1290 \u12c8\u12aa\u120d AI \u12f6\u121d\u1235\u1272\u12ad \u12a5\u12e8\u1362 \u121e\u12ed\u12ad\u122d: "20 \u1276\u1295 \u1261\u1295 \u1905\u122a \u1305\u121b \u1293\u1265 \u12a3\u12f2\u1235 \u12a3\u1260\u1263 40000 \u1265\u122d"',
@@ -448,6 +453,7 @@ const SW: Record<keyof typeof EN, string> = {
   send: 'Tuma',
   mic: 'Ingiza sauti',
   listening: 'Inasikiliza\u2026',
+  installApp: 'Sakisha programu',
   voiceUnsupported: 'Kuingiza sauti hakutumiki kwenye kivinjari hiki.',
   greeting:
     'Habari! Mimi ni Wakala wa AI wa Domestic. Jaribu: "Toni 20 za kahawa kutoka Jimma hadi Addis Ababa kwa 40000 birr"',
