@@ -215,6 +215,16 @@ function ShipperPanel({ t }: { t: Strings }) {
     }
   }
 
+  async function cancel(loadId: string) {
+    setError(null);
+    try {
+      await api.cancelLoad(loadId);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   return (
     <section>
       <h2>{t.postLoad}</h2>
@@ -290,6 +300,11 @@ function ShipperPanel({ t }: { t: Strings }) {
             <button onClick={() => findMatches(load.id)}>{t.findMatches}</button>
             {load.status === 'open' && (
               <button onClick={() => assignTop(load.id)}>{t.assignTopMatch}</button>
+            )}
+            {(load.status === 'open' || load.status === 'assigned') && (
+              <button className="danger" onClick={() => cancel(load.id)}>
+                {t.cancelLoadBtn}
+              </button>
             )}
           </div>
           {matches[load.id] && (

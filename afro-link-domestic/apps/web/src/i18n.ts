@@ -67,6 +67,7 @@ const EN = {
   zeroDeadheadShare: 'Trips with < 25 km deadhead',
   advancesDisbursed: 'Advances disbursed (ETB)',
   vatCollected: 'VAT invoiced (ETB)',
+  cancelLoadBtn: 'Cancel',
   metricsAdminNote: 'Metrics are admin-only — sign in with an admin SSO token.',
 } as const;
 
@@ -136,6 +137,7 @@ const AM: Record<keyof typeof EN, string> = {
   zeroDeadheadShare: 'ከ25 ኪ.ሜ ባነሱ ባዶ ጉዞዎች',
   advancesDisbursed: 'የተከፈሉ ክፍያዎች (ETB)',
   vatCollected: 'የተጠየቀ ቫት (ETB)',
+  cancelLoadBtn: 'ሰርዝ',
   metricsAdminNote: 'ሊፖርቱ ለአስተዳዳሪ ብቻ ነው — በአስተዳዳሪ ቶከን ይግቡ።',
 };
 

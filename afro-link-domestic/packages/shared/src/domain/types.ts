@@ -30,7 +30,7 @@ export interface Load {
   status: LoadStatus;
 }
 
-export type ShipmentStatus = 'assigned' | 'in_transit' | 'delivered';
+export type ShipmentStatus = 'assigned' | 'in_transit' | 'delivered' | 'cancelled';
 
 export interface Shipment {
   id: string;
@@ -75,7 +75,7 @@ export interface VatInvoice {
 }
 
 export interface MarketplaceMetrics {
-  loads: { total: number; open: number; assigned: number; delivered: number };
+  loads: { total: number; open: number; assigned: number; delivered: number; cancelled: number };
   shipments: { total: number; delivered: number };
   avgDeadheadKm: number;
   zeroDeadheadShare: number;
@@ -87,7 +87,11 @@ export interface MarketplaceMetrics {
   vat: { invoiceCount: number; totalVatEtb: number; totalWithVatEtb: number };
 }
 
-export type WebhookEvent = 'shipment.assigned' | 'shipment.picked_up' | 'shipment.delivered';
+export type WebhookEvent =
+  | 'shipment.assigned'
+  | 'shipment.picked_up'
+  | 'shipment.delivered'
+  | 'load.cancelled';
 
 export interface Webhook {
   id: string;

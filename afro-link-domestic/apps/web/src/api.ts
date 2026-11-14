@@ -106,6 +106,7 @@ export const api = {
     offeredPriceEtb: number;
   }) => request<Load>('/loads', 'POST', input),
   getMatches: (loadId: string) => request<OperatorMatch[]>(`/loads/${loadId}/matches`, 'GET'),
+  cancelLoad: (loadId: string) => request<Load>(`/loads/${loadId}/cancel`, 'POST'),
 
   getReturnLoads: (operatorId: string) =>
     request<ReturnLoadMatch[]>(`/operators/${operatorId}/return-loads`, 'GET'),

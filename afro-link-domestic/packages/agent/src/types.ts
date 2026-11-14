@@ -44,6 +44,7 @@ export interface AgentStore {
   findShipment(shipmentId: string): Promise<Shipment | undefined>;
   findLatestShipment(): Promise<Shipment | undefined>;
   findLatestLoad(): Promise<Load | undefined>;
+  cancelLoad(loadId: string): Promise<Load>;
   getMetrics(): Promise<MarketplaceMetrics>;
 }
 
@@ -61,6 +62,7 @@ export type AgentIntent =
   | 'track_shipment'
   | 'create_invoice'
   | 'get_metrics'
+  | 'cancel_load'
   | 'help'
   | 'unknown';
 

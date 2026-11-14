@@ -204,6 +204,122 @@ describe('marketplace api', async () => {
     expect(metrics.vat.totalWithVatEtb).toBeGreaterThanOrEqual(46000);
   });
 
+  it('cancels an assigned load and frees the operator', async () => {
+    const operator = (
+      await app.inject({
+        method: 'POST',
+        url: '/operators',
+        payload: {
+          name: 'Cancel Trucks',
+          phone: '+251911666777',
+          truckPlate: 'AA-55555',
+          capacityTons: 25,
+          currentCity: addis,
+        },
+      })
+    ).json();
+    const load = (
+      await app.inject({
+        method: 'POST',
+        url: '/loads',
+        payload: {
+          shipperId: 'shipper-cancel',
+          origin: addis,
+          destination: jimma,
+          weightTons: 10,
+          offeredPriceEtb: 15000,
+        },
+      })
+    ).json();
+
+    await app.inject({
+      method: 'POST',
+      url: '/shipments',
+      payload: { loadId: load.id, operatorId: operator.id },
+    });
+
+    const cancelRes = await app.inject({ method: 'POST', url: `/loads/${load.id}/cancel` });
+    expect(cancelRes.statusCode).toBe(200);
+    expect(cancelRes.json().status).toBe('cancelled');
+
+    const operatorsAfter = (await app.inject({ method: 'GET', url: '/operators' })).json();
+    expect(operatorsAfter.find((o: { id: string }) => o.id === operator.id).status).toBe(
+      'available',
+    );
+
+    const again = await app.inject({ method: 'POST', url: `/loads/${load.id}/cancel` });
+    expect(again.statusCode).toBe(409);
+  });
+
+  it('blocks cancelling delivered loads and loads with active advances', async () => {
+    const operator = (
+      await app.inject({
+        method: 'POST',
+        url: '/operators',
+        payload: {
+          name: 'Block Trucks',
+          phone: '+251911777888',
+          truckPlate: 'AA-66666',
+          capacityTons: 25,
+          currentCity: jimma,
+        },
+      })
+    ).json();
+    const load = (
+      await app.inject({
+        method: 'POST',
+        url: '/loads',
+        payload: {
+          shipperId: 'shipper-block',
+          origin: jimma,
+          destination: addis,
+          weightTons: 10,
+          offeredPriceEtb: 20000,
+        },
+      })
+    ).json();
+    const shipment = (
+      await app.inject({
+        method: 'POST',
+        url: '/shipments',
+        payload: { loadId: load.id, operatorId: operator.id },
+      })
+    ).json();
+
+    const advance = (
+      await app.inject({
+        method: 'POST',
+        url: '/advances',
+        payload: {
+          operatorId: operator.id,
+          shipmentId: shipment.id,
+          amountEtb: 2000,
+          channel: 'cbe_birr',
+        },
+      })
+    ).json();
+
+    const withAdvance = await app.inject({ method: 'POST', url: `/loads/${load.id}/cancel` });
+    expect(withAdvance.statusCode).toBe(409);
+    expect(withAdvance.json().error).toMatch(/advance/i);
+
+    await app.inject({
+      method: 'POST',
+      url: `/advances/${advance.id}/transition`,
+      payload: { action: 'reject' },
+    });
+    const deliverRes = await app.inject({
+      method: 'POST',
+      url: `/shipments/${shipment.id}/events`,
+      payload: { kind: 'delivered', location: addis },
+    });
+    expect(deliverRes.statusCode).toBe(201);
+
+    const delivered = await app.inject({ method: 'POST', url: `/loads/${load.id}/cancel` });
+    expect(delivered.statusCode).toBe(409);
+    expect(delivered.json().error).toMatch(/delivered/i);
+  });
+
   it('suggests return loads for an operator', async () => {
     const operatorRes = await app.inject({
       method: 'POST',

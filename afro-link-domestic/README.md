@@ -33,6 +33,7 @@ The web app reads `VITE_API_BASE` at build time (defaults to `/api`, proxied in 
 | GET | `/health` | Liveness probe |
 | GET/POST | `/operators` | List / register truck operators |
 | GET/POST | `/loads` | List / post freight loads |
+| POST | `/loads/:id/cancel` | Cancel an open/assigned load (shipper-owned or admin); frees the operator; blocked once delivered or with an active fuel advance |
 | GET | `/loads/:id/matches` | Ranked operator matches (deadhead + backhaul aware) |
 | GET/POST | `/shipments` | List / assign a load to an operator |
 | POST | `/shipments/:id/events` | Append tracking events (picked_up, in_transit, delivered, ...) |
@@ -115,7 +116,7 @@ Live gateways enforce a 15s timeout (`*_TIMEOUT_MS` to override), map HTTP/netwo
 
 ## Webhooks
 
-Register an outbound webhook (`POST /webhooks` with `{url, events?, secret?}`) and Afro-Link Domestic pushes `shipment.assigned`, `shipment.picked_up` and `shipment.delivered` events as JSON with an `X-Afro-Link-Signature: sha256=<hmac>` header (HMAC-SHA256 of the raw body with your secret — verify before trusting the payload). Omit `events` to receive everything; a secret is generated for you when omitted. Delivery failures and slow endpoints (5 s timeout) never block marketplace operations.
+Register an outbound webhook (`POST /webhooks` with `{url, events?, secret?}`) and Afro-Link Domestic pushes `shipment.assigned`, `shipment.picked_up`, `shipment.delivered` and `load.cancelled` events as JSON with an `X-Afro-Link-Signature: sha256=<hmac>` header (HMAC-SHA256 of the raw body with your secret — verify before trusting the payload). Omit `events` to receive everything; a secret is generated for you when omitted. Delivery failures and slow endpoints (5 s timeout) never block marketplace operations.
 
 ## Web app
 

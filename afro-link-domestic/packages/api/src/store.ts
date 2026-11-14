@@ -117,6 +117,43 @@ export class MarketplaceStore implements AgentStore {
     return shipment;
   }
 
+  async cancelLoad(loadId: string): Promise<Load> {
+    const load = await this.getLoad(loadId);
+    if (load.status === 'delivered') {
+      throw new DomainError('conflict', 'Delivered loads cannot be cancelled.');
+    }
+    if (load.status === 'cancelled') {
+      throw new DomainError('conflict', 'Load is already cancelled.');
+    }
+    const shipments = (await this.repo.listShipments()).filter(
+      (s) => s.loadId === load.id && (s.status === 'assigned' || s.status === 'in_transit'),
+    );
+    for (const shipment of shipments) {
+      const advances = (await this.repo.listAdvances()).filter(
+        (a) =>
+          a.shipmentId === shipment.id &&
+          (a.status === 'requested' || a.status === 'approved' || a.status === 'disbursed'),
+      );
+      if (advances.length > 0) {
+        throw new DomainError(
+          'conflict',
+          'Load has an active fuel advance; resolve it before cancelling.',
+        );
+      }
+    }
+    for (const shipment of shipments) {
+      await this.repo.saveShipment({ ...shipment, status: 'cancelled' });
+      const operator = await this.repo.getOperator(shipment.operatorId);
+      if (operator && operator.status === 'on_trip') {
+        await this.repo.saveOperator({ ...operator, status: 'available' });
+      }
+    }
+    const cancelled: Load = { ...load, status: 'cancelled' };
+    await this.repo.saveLoad(cancelled);
+    void this.webhooks?.dispatch('load.cancelled', { load: cancelled, shipments });
+    return cancelled;
+  }
+
   async addTrackingEvent(
     shipmentId: string,
     kind: TrackingEventKind,
@@ -192,6 +229,7 @@ export class MarketplaceStore implements AgentStore {
         open: loads.filter((l) => l.status === 'open').length,
         assigned: loads.filter((l) => l.status === 'assigned').length,
         delivered: loads.filter((l) => l.status === 'delivered').length,
+        cancelled: loads.filter((l) => l.status === 'cancelled').length,
       },
       shipments: {
         total: shipments.length,

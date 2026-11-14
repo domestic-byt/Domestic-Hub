@@ -108,6 +108,9 @@ describe('agent LLM fallback', () => {
     async findLatestLoad(): Promise<undefined> {
       return undefined;
     }
+    async cancelLoad(): Promise<never> {
+      throw new Error('not used');
+    }
     async getMetrics(): Promise<never> {
       throw new Error('not used');
     }

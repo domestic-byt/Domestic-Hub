@@ -19,6 +19,7 @@ const HELP_TEXT = [
   '- Track: "where is my shipment <id>?"',
   '- Invoices: "issue the VAT invoice" (15% Ethiopian VAT)',
   '- Metrics: "show me the business report"',
+  '- Cancel: "cancel load <id>"',
 ].join('\n');
 
 const UNKNOWN_TEXT = "I didn't catch that. " + HELP_TEXT;
@@ -74,6 +75,8 @@ export class DomesticAgent {
           return await this.createInvoice(message, ctx, memory);
         case 'get_metrics':
           return await this.reportMetrics();
+        case 'cancel_load':
+          return await this.cancelLoad(message, memory);
         case 'help':
           return { reply: HELP_TEXT };
         default:
@@ -294,6 +297,22 @@ export class DomesticAgent {
     return {
       reply: `VAT invoice ${invoice.id}: subtotal ${invoice.subtotalEtb} ETB + VAT ${invoice.vatEtb} ETB = ${invoice.totalEtb} ETB.`,
       data: invoice,
+    };
+  }
+
+  private async cancelLoad(message: string, memory: AgentMemoryState) {
+    const slots = extractSlots(message);
+    const loadId = slots.ids[0] ?? memory.lastLoadId;
+    if (!loadId) {
+      return {
+        reply: 'Which load should I cancel? Share the load id, or post one first.',
+      };
+    }
+    const load = await this.store.cancelLoad(loadId);
+    memory.lastLoadId = load.id;
+    return {
+      reply: `Load ${load.id} cancelled. The truck is free again and can take return loads near its current location.`,
+      data: load,
     };
   }
 

@@ -155,6 +155,22 @@ class FakeStore implements AgentStore {
     return [...this.loads.values()].at(-1);
   }
 
+  async cancelLoad(loadId: string): Promise<Load> {
+    const load = this.loads.get(loadId);
+    if (!load) throw new DomainError('not_found', 'Load not found.');
+    if (load.status !== 'open' && load.status !== 'assigned') {
+      throw new DomainError('conflict', `Load is ${load.status}, cannot cancel.`);
+    }
+    for (const [id, s] of this.shipments) {
+      if (s.loadId === loadId && (s.status === 'assigned' || s.status === 'in_transit')) {
+        this.shipments.set(id, { ...s, status: 'cancelled' });
+      }
+    }
+    const cancelled = { ...load, status: 'cancelled' as const };
+    this.loads.set(loadId, cancelled);
+    return cancelled;
+  }
+
   async getMetrics(): Promise<MarketplaceMetrics> {
     const loads = [...this.loads.values()];
     const shipments = [...this.shipments.values()];
@@ -166,6 +182,7 @@ class FakeStore implements AgentStore {
         open: loads.filter((l) => l.status === 'open').length,
         assigned: loads.filter((l) => l.status === 'assigned').length,
         delivered: loads.filter((l) => l.status === 'delivered').length,
+        cancelled: loads.filter((l) => l.status === 'cancelled').length,
       },
       shipments: {
         total: shipments.length,
@@ -220,6 +237,8 @@ describe('detectIntent', () => {
     expect(detectIntent('issue the VAT invoice')).toBe('create_invoice');
     expect(detectIntent('show me the business report')).toBe('get_metrics');
     expect(detectIntent('ሪፖርት አሳዩኝ')).toBe('get_metrics');
+    expect(detectIntent('cancel that load')).toBe('cancel_load');
+    expect(detectIntent('ተሰርዝ አስፈልገኛል')).toBe('cancel_load');
     expect(detectIntent('help')).toBe('help');
     expect(detectIntent('xyzzy')).toBe('unknown');
   });
@@ -393,6 +412,20 @@ describe('DomesticAgent', () => {
     });
     expect(result.intent).toBe('create_invoice');
     expect(result.reply).toContain('46000 ETB');
+  });
+
+  it('cancels a load and reports domain conflicts', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+    await agent.handle('Post 20 tons from Jimma to Addis Ababa for 40000 birr');
+
+    const result = await agent.handle('cancel that load');
+    expect(result.intent).toBe('cancel_load');
+    expect(result.reply).toContain('cancelled');
+    expect((await store.findLatestLoad())!.status).toBe('cancelled');
+
+    const again = await agent.handle('cancel that load');
+    expect(again.reply).toMatch(/⚠️.*cancelled/);
   });
 
   it('reports marketplace metrics', async () => {

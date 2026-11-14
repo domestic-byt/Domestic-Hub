@@ -125,4 +125,17 @@ export async function loadRoutes(app: FastifyInstance, store: MarketplaceStore) 
     const { id } = request.params as { id: string };
     return run(reply, () => store.rankReturnLoads(id));
   });
+
+  app.post('/loads/:id/cancel', async (request, reply) => {
+    if (guard(request, reply, 'shipper', 'admin')) return;
+    const { id } = request.params as { id: string };
+    const actor = request.actor;
+    if (actor?.role === 'shipper') {
+      const load = await store.listLoads().then((loads) => loads.find((l) => l.id === id));
+      if (load && load.shipperId !== actor.subject) {
+        return reply.code(403).send({ error: 'You can only cancel your own loads.' });
+      }
+    }
+    return run(reply, () => store.cancelLoad(id), 200);
+  });
 }

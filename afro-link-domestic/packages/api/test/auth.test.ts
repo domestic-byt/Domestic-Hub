@@ -108,6 +108,31 @@ describe('authenticated api', async () => {
     expect(loadRes.json().shipperId).toBe('shipper-77');
   });
 
+  it('lets shippers cancel only their own loads', async () => {
+    const otherLoad = await app.inject({
+      method: 'POST',
+      url: '/loads',
+      headers: authed('shipper', 'shipper-other'),
+      payload: { shipperId: 'ignored', origin: addis, destination: jimma, weightTons: 10, offeredPriceEtb: 1000 },
+    });
+    expect(otherLoad.statusCode).toBe(201);
+
+    const forbidden = await app.inject({
+      method: 'POST',
+      url: `/loads/${otherLoad.json().id}/cancel`,
+      headers: authed('shipper', 'shipper-77'),
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    const own = await app.inject({
+      method: 'POST',
+      url: `/loads/${otherLoad.json().id}/cancel`,
+      headers: authed('shipper', 'shipper-other'),
+    });
+    expect(own.statusCode).toBe(200);
+    expect(own.json().status).toBe('cancelled');
+  });
+
   it('restricts payout transitions to admins', async () => {
     const operatorRes = await app.inject({
       method: 'POST',
