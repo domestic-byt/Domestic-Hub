@@ -98,6 +98,8 @@ export const api = {
     truckPlate: string;
     capacityTons: number;
     currentCity: City;
+    licenseExpiry?: string;
+    insuranceExpiry?: string;
   }) => request<Operator>('/operators', 'POST', input),
 
   listLoads: () => request<Load[]>('/loads', 'GET'),

@@ -36,10 +36,21 @@ describe.skipIf(!process.env.DATABASE_URL)('pg repo', () => {
     const fetched = await repo.getOperator(operator.id);
     expect(fetched).toEqual(operator);
 
-    const updated = { ...operator, status: 'on_trip' as const, lastDropOffCity: undefined };
+    const updated = {
+      ...operator,
+      status: 'on_trip' as const,
+      lastDropOffCity: undefined,
+      licenseExpiry: '2027-03-01',
+      insuranceExpiry: '2028-07-15',
+    };
     await repo.saveOperator(updated);
     expect(await repo.getOperator(operator.id)).toEqual(updated);
     expect((await repo.listOperators()).some((o) => o.id === operator.id)).toBe(true);
+
+    await repo.saveOperator({ ...operator, status: 'available' as const });
+    const cleared = await repo.getOperator(operator.id);
+    expect(cleared?.licenseExpiry).toBeUndefined();
+    expect(cleared?.insuranceExpiry).toBeUndefined();
   });
 
   it('stores loads and returns them in insertion order with latestLoad', async () => {

@@ -1,4 +1,5 @@
 import { haversineKm } from './geo';
+import { kycIssues, kycStatus } from './kyc';
 import { Load, TruckOperator } from './types';
 
 export interface OperatorMatch {
@@ -21,7 +22,7 @@ export function rankOperatorsForLoad(
   operators: TruckOperator[],
 ): OperatorMatch[] {
   return operators
-    .filter((o) => o.capacityTons >= load.weightTons)
+    .filter((o) => o.capacityTons >= load.weightTons && kycIssues(o).length === 0)
     .map((o) => {
       const anchor = o.lastDropOffCity ?? o.currentCity;
       const deadheadKm = haversineKm(anchor, load.origin);
@@ -31,6 +32,9 @@ export function rankOperatorsForLoad(
 
       score -= deadheadKm * DEADHEAD_PENALTY_PER_KM;
       score -= slackTons * SLACK_PENALTY_PER_TON;
+      if (kycStatus(o) === 'unverified') {
+        reasons.push('KYC documents not provided');
+      }
       if (o.status === 'on_trip') {
         score -= ON_TRIP_PENALTY;
         reasons.push('currently on a trip');

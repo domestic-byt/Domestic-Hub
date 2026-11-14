@@ -399,6 +399,8 @@ function DriverPanel({ t }: { t: Strings }) {
     truckPlate: '',
     capacityTons: 25,
     currentCity: 'Addis Ababa',
+    licenseExpiry: '',
+    insuranceExpiry: '',
   });
   const [advForm, setAdvForm] = useState({
     operatorId: '',
@@ -436,6 +438,8 @@ function DriverPanel({ t }: { t: Strings }) {
         truckPlate: opForm.truckPlate,
         capacityTons: Number(opForm.capacityTons),
         currentCity: city(opForm.currentCity),
+        ...(opForm.licenseExpiry ? { licenseExpiry: opForm.licenseExpiry } : {}),
+        ...(opForm.insuranceExpiry ? { insuranceExpiry: opForm.insuranceExpiry } : {}),
       });
       await refresh();
     } catch (e) {
@@ -552,6 +556,22 @@ function DriverPanel({ t }: { t: Strings }) {
               <option key={c}>{c}</option>
             ))}
           </select>
+        </label>
+        <label>
+          {t.licenseExpiry}
+          <input
+            type="date"
+            value={opForm.licenseExpiry}
+            onChange={(e) => setOpForm({ ...opForm, licenseExpiry: e.target.value })}
+          />
+        </label>
+        <label>
+          {t.insuranceExpiry}
+          <input
+            type="date"
+            value={opForm.insuranceExpiry}
+            onChange={(e) => setOpForm({ ...opForm, insuranceExpiry: e.target.value })}
+          />
         </label>
         <button type="submit">{t.registerBtn}</button>
       </form>

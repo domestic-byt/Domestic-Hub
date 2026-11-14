@@ -29,7 +29,9 @@ CREATE TABLE IF NOT EXISTS operators (
   capacity_tons DOUBLE PRECISION NOT NULL,
   current_city JSONB NOT NULL,
   last_drop_off_city JSONB,
-  status TEXT NOT NULL
+  status TEXT NOT NULL,
+  license_expiry DATE,
+  insurance_expiry DATE
 );
 CREATE TABLE IF NOT EXISTS loads (
   seq BIGSERIAL,
@@ -108,6 +110,12 @@ function isoOrNull(value: unknown): string | undefined {
   return value === null || value === undefined ? undefined : iso(value);
 }
 
+function dateOf(value: unknown): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value);
+}
+
 function cityOf(value: unknown): City | undefined {
   return (value as City | null) ?? undefined;
 }
@@ -122,6 +130,8 @@ function rowToOperator(row: Row): TruckOperator {
     currentCity: row.current_city as City,
     lastDropOffCity: cityOf(row.last_drop_off_city),
     status: str(row.status) as TruckOperator['status'],
+    licenseExpiry: dateOf(row.license_expiry),
+    insuranceExpiry: dateOf(row.insurance_expiry),
   };
 }
 
@@ -217,12 +227,13 @@ export class PgRepo implements MarketplaceRepo {
 
   async saveOperator(operator: TruckOperator): Promise<void> {
     await this.pool.query(
-      `INSERT INTO operators (id, name, phone, truck_plate, capacity_tons, current_city, last_drop_off_city, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO operators (id, name, phone, truck_plate, capacity_tons, current_city, last_drop_off_city, status, license_expiry, insurance_expiry)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name, phone = EXCLUDED.phone, truck_plate = EXCLUDED.truck_plate,
          capacity_tons = EXCLUDED.capacity_tons, current_city = EXCLUDED.current_city,
-         last_drop_off_city = EXCLUDED.last_drop_off_city, status = EXCLUDED.status`,
+         last_drop_off_city = EXCLUDED.last_drop_off_city, status = EXCLUDED.status,
+         license_expiry = EXCLUDED.license_expiry, insurance_expiry = EXCLUDED.insurance_expiry`,
       [
         operator.id,
         operator.name,
@@ -232,6 +243,8 @@ export class PgRepo implements MarketplaceRepo {
         JSON.stringify(operator.currentCity),
         operator.lastDropOffCity ? JSON.stringify(operator.lastDropOffCity) : null,
         operator.status,
+        operator.licenseExpiry ?? null,
+        operator.insuranceExpiry ?? null,
       ],
     );
   }

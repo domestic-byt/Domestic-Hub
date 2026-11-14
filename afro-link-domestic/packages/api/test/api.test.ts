@@ -219,6 +219,67 @@ describe('marketplace api', async () => {
     expect(metrics.vat.totalWithVatEtb).toBeGreaterThanOrEqual(46000);
   });
 
+  it('blocks assigning operators with expired KYC documents', async () => {
+    const app = await buildServer();
+    const addis = { name: 'Addis Ababa', lat: 9.03, lon: 38.74 };
+    const operatorRes = await app.inject({
+      method: 'POST',
+      url: '/operators',
+      payload: {
+        name: 'Expired KYC Trucks',
+        phone: '+251911007766',
+        truckPlate: 'AA-88224',
+        capacityTons: 30,
+        currentCity: addis,
+        licenseExpiry: '2020-01-01',
+        insuranceExpiry: '2030-01-01',
+      },
+    });
+    expect(operatorRes.statusCode).toBe(201);
+    const operator = operatorRes.json();
+    expect(operator.licenseExpiry).toBe('2020-01-01');
+
+    const badDate = await app.inject({
+      method: 'POST',
+      url: '/operators',
+      payload: {
+        name: 'Bad Date Trucks',
+        phone: '+251911005544',
+        truckPlate: 'AA-66331',
+        capacityTons: 30,
+        currentCity: addis,
+        licenseExpiry: 'next Tuesday',
+      },
+    });
+    expect(badDate.statusCode).toBe(422);
+
+    const loadRes = await app.inject({
+      method: 'POST',
+      url: '/loads',
+      payload: {
+        shipperId: 'shipper-kyc',
+        origin: addis,
+        destination: { name: 'Adama', lat: 8.54, lon: 39.27 },
+        weightTons: 10,
+        offeredPriceEtb: 15000,
+      },
+    });
+    const load = loadRes.json();
+
+    const matches = await app.inject({ method: 'GET', url: `/loads/${load.id}/matches` });
+    expect(matches.json()).toEqual([]);
+
+    const assignRes = await app.inject({
+      method: 'POST',
+      url: '/shipments',
+      payload: { loadId: load.id, operatorId: operator.id },
+    });
+    expect(assignRes.statusCode).toBe(409);
+    expect(assignRes.json().error).toMatch(/KYC failed.*license/i);
+
+    await app.close();
+  });
+
   it('blocks proof of delivery on shipments that are not delivered', async () => {
     const app = await buildServer();
     const addis = { name: 'Addis Ababa', lat: 9.03, lon: 38.74 };

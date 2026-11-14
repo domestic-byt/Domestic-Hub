@@ -39,6 +39,8 @@ interface TruckOperatorBody {
   capacityTons: number;
   currentCity: City;
   lastDropOffCity?: City;
+  licenseExpiry?: string;
+  insuranceExpiry?: string;
 }
 
 interface LoadBody {
@@ -76,6 +78,16 @@ export async function operatorRoutes(app: FastifyInstance, store: MarketplaceSto
       return reply.code(400).send({ error: 'capacityTons must be a positive number.' });
     }
     const lastDropOffCity = body.lastDropOffCity;
+    const dateFields: Array<['licenseExpiry' | 'insuranceExpiry', string | undefined]> = [
+      ['licenseExpiry', body.licenseExpiry],
+      ['insuranceExpiry', body.insuranceExpiry],
+    ];
+    const errors = dateFields
+      .filter(([, value]) => value !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(value!))
+      .map(([field]) => `${field} must be an ISO date (YYYY-MM-DD).`);
+    if (errors.length > 0) {
+      return reply.code(422).send({ errors });
+    }
     return run(
       reply,
       () =>
@@ -86,6 +98,8 @@ export async function operatorRoutes(app: FastifyInstance, store: MarketplaceSto
         capacityTons: body.capacityTons!,
         currentCity: body.currentCity!,
         lastDropOffCity: isCity(lastDropOffCity) ? lastDropOffCity : undefined,
+        licenseExpiry: body.licenseExpiry,
+        insuranceExpiry: body.insuranceExpiry,
       }),
       201,
     );

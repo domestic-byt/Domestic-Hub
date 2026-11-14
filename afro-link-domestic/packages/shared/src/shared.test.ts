@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { rankOperatorsForLoad } from '../src/domain/matching';
+import { kycIssues, kycStatus } from '../src/domain/kyc';
 import { suggestPrice } from '../src/domain/pricing';
 import { computeVat, ETHIOPIAN_VAT_RATE } from '../src/domain/vat';
 import {
@@ -184,5 +185,39 @@ describe('lane price benchmarking', () => {
 
   it('returns null with no delivered history', () => {
     expect(suggestPrice([makeLoad()], { origin: jimma, destination: addis, weightTons: 20 })).toBeNull();
+  });
+});
+
+describe('kyc', () => {
+  const now = new Date('2025-06-15T12:00:00.000Z');
+
+  it('classifies operators by document state', () => {
+    expect(kycStatus({}, now)).toBe('unverified');
+    expect(
+      kycStatus({ licenseExpiry: '2026-01-01', insuranceExpiry: '2026-01-01' }, now),
+    ).toBe('valid');
+    expect(kycStatus({ licenseExpiry: '2025-06-15' }, now)).toBe('valid');
+    expect(kycStatus({ licenseExpiry: '2025-06-14' }, now)).toBe('expired');
+    expect(
+      kycStatus({ licenseExpiry: '2026-01-01', insuranceExpiry: '2025-01-01' }, now),
+    ).toBe('expired');
+  });
+
+  it('lists expired documents', () => {
+    const issues = kycIssues(
+      { licenseExpiry: '2025-01-01', insuranceExpiry: '2026-01-01' },
+      now,
+    );
+    expect(issues).toEqual(['driving license expired on 2025-01-01']);
+    expect(kycIssues({}, now)).toEqual([]);
+  });
+
+  it('excludes operators with expired documents from matching', () => {
+    const load = makeLoad();
+    const expired = makeOperator({ id: 'op-expired', licenseExpiry: '2025-01-01' });
+    const unverified = makeOperator({ id: 'op-unverified' });
+    const matches = rankOperatorsForLoad(load, [expired, unverified]);
+    expect(matches.map((m) => m.operatorId)).toEqual(['op-unverified']);
+    expect(matches[0]!.reasons).toContain('KYC documents not provided');
   });
 });

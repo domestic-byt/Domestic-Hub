@@ -15,6 +15,8 @@ export interface TruckOperator {
   currentCity: City;
   lastDropOffCity?: City;
   status: OperatorStatus;
+  licenseExpiry?: string;
+  insuranceExpiry?: string;
 }
 
 export type LoadStatus = 'open' | 'assigned' | 'delivered' | 'cancelled';

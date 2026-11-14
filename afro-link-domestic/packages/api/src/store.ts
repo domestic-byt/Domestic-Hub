@@ -24,6 +24,7 @@ import {
   suggestPrice,
   validateAdvanceRequest,
   ProofOfDelivery,
+  kycIssues,
 } from '@afro-link/shared';
 import type {
   AgentStore,
@@ -51,6 +52,8 @@ export class MarketplaceStore implements AgentStore {
     capacityTons: number;
     currentCity: City;
     lastDropOffCity?: City;
+    licenseExpiry?: string;
+    insuranceExpiry?: string;
   }): Promise<TruckOperator> {
     const operator: TruckOperator = {
       ...input,
@@ -90,6 +93,10 @@ export class MarketplaceStore implements AgentStore {
     const operator = await this.getOperator(operatorId);
     if (operator.capacityTons < load.weightTons) {
       throw new DomainError('conflict', 'Operator capacity is below load weight.');
+    }
+    const issues = kycIssues(operator);
+    if (issues.length > 0) {
+      throw new DomainError('conflict', `Operator KYC failed: ${issues.join('; ')}.`);
     }
     const deadheadKm =
       Math.round(
