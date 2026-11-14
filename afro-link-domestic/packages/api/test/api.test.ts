@@ -18,7 +18,27 @@ describe('marketplace api', () => {
   it('reports health', async () => {
     const res = await app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ status: 'ok', service: 'afro-link-domestic-api' });
+    expect(res.json()).toEqual({
+      status: 'ok',
+      service: 'afro-link-domestic-api',
+      domain: 'afro-link.domestic.com.et',
+    });
+  });
+
+  it('allows CORS from the production domain and blocks unknown origins', async () => {
+    const allowed = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: { origin: 'https://afro-link.domestic.com.et' },
+    });
+    expect(allowed.headers['access-control-allow-origin']).toBe('https://afro-link.domestic.com.et');
+
+    const blocked = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: { origin: 'https://evil.example' },
+    });
+    expect(blocked.headers['access-control-allow-origin']).toBeUndefined();
   });
 
   it('runs the full shipper-to-invoice flow', async () => {

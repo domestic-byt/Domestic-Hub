@@ -43,6 +43,14 @@ npm run dev:api   # start API on http://127.0.0.1:3000
 - **VAT invoices** apply the 15% Ethiopian VAT rate and carry shipper/operator TINs for compliance.
 - **Domestic AI Agent** detects intents in English and Amharic (post load, find trucks, assign, fuel advance, track, invoice), extracts slots (cities from an 17-city Ethiopian gazetteer, tons, birr amounts, channels, ids), executes through the same `AgentStore` the HTTP API uses, and optionally polishes replies through a pluggable `LlmAdapter`.
 
+## Domain & deployment
+
+Canonical domain: **https://afro-link.domestic.com.et** (Afro-Link Domestic, part of DomesticHub at domestic.com.et).
+
+- The API allowlists browser origins via the `ALLOWED_ORIGINS` env var (comma-separated). Defaults: `https://afro-link.domestic.com.et`, `https://domestic.com.et`, `https://domestic-hub.vercel.app`, and localhost dev ports — see `.env.example`.
+- To attach the domain on Vercel (where this repo previews deploy): Vercel dashboard → project **domestic-hub** → Settings → Domains → add `afro-link.domestic.com.et`; then at the DNS host for `domestic.com.et`, create the record Vercel shows (typically `CNAME afro-link → cname.vercel-dns.com`).
+- Health check: `GET /health` reports `{ status, service, domain }`.
+
 ## Roadmap
 
 - `apps/web` — shipper dashboard and driver app (Amharic/English).
