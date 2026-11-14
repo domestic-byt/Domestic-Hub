@@ -46,7 +46,8 @@ CREATE TABLE IF NOT EXISTS shipments (
   operator_id TEXT NOT NULL,
   assigned_at TIMESTAMPTZ NOT NULL,
   delivered_at TIMESTAMPTZ,
-  status TEXT NOT NULL
+  status TEXT NOT NULL,
+  deadhead_km DOUBLE PRECISION
 );
 CREATE TABLE IF NOT EXISTS tracking_events (
   seq BIGSERIAL,
@@ -133,6 +134,7 @@ function rowToShipment(row: Row): Shipment {
     assignedAt: iso(row.assigned_at),
     deliveredAt: isoOrNull(row.delivered_at),
     status: str(row.status) as ShipmentStatus,
+    deadheadKm: row.deadhead_km === null ? undefined : num(row.deadhead_km),
   };
 }
 
@@ -258,12 +260,12 @@ export class PgRepo implements MarketplaceRepo {
 
   async saveShipment(shipment: Shipment): Promise<void> {
     await this.pool.query(
-      `INSERT INTO shipments (id, load_id, operator_id, assigned_at, delivered_at, status)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO shipments (id, load_id, operator_id, assigned_at, delivered_at, status, deadhead_km)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (id) DO UPDATE SET
          load_id = EXCLUDED.load_id, operator_id = EXCLUDED.operator_id,
          assigned_at = EXCLUDED.assigned_at, delivered_at = EXCLUDED.delivered_at,
-         status = EXCLUDED.status`,
+         status = EXCLUDED.status, deadhead_km = EXCLUDED.deadhead_km`,
       [
         shipment.id,
         shipment.loadId,
@@ -271,6 +273,7 @@ export class PgRepo implements MarketplaceRepo {
         shipment.assignedAt,
         shipment.deliveredAt ?? null,
         shipment.status,
+        shipment.deadheadKm ?? null,
       ],
     );
   }

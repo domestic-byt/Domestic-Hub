@@ -86,6 +86,7 @@ describe('marketplace api', async () => {
     });
     expect(shipmentRes.statusCode).toBe(201);
     const shipment = shipmentRes.json();
+    expect(shipment.deadheadKm).toBe(0);
 
     const earlyInvoice = await app.inject({
       method: 'POST',
@@ -159,6 +160,14 @@ describe('marketplace api', async () => {
       'delivered',
     ]);
 
+    const operatorsAfter = (await app.inject({ method: 'GET', url: '/operators' })).json();
+    const deliveredOperator = operatorsAfter.find(
+      (o: { id: string }) => o.id === operator.id,
+    );
+    expect(deliveredOperator.status).toBe('available');
+    expect(deliveredOperator.currentCity).toEqual(addis);
+    expect(deliveredOperator.lastDropOffCity).toEqual(addis);
+
     const invoiceRes = await app.inject({
       method: 'POST',
       url: '/invoices',
@@ -179,6 +188,20 @@ describe('marketplace api', async () => {
     expect(recoverRes.statusCode).toBe(200);
     expect(recoverRes.json().status).toBe('recovered');
     expect(recoverRes.json().payoutReference).toMatch(/^TB-SIM-/);
+
+    const metricsRes = await app.inject({ method: 'GET', url: '/metrics' });
+    expect(metricsRes.statusCode).toBe(200);
+    const metrics = metricsRes.json();
+    expect(metrics.loads.delivered).toBeGreaterThanOrEqual(1);
+    expect(metrics.shipments.delivered).toBeGreaterThanOrEqual(1);
+    expect(metrics.avgDeadheadKm).toBeGreaterThanOrEqual(0);
+    expect(metrics.zeroDeadheadShare).toBeGreaterThanOrEqual(0);
+    expect(metrics.zeroDeadheadShare).toBeLessThanOrEqual(1);
+    expect(metrics.advances.byChannel.telebirr).toBeGreaterThanOrEqual(8000);
+    expect(metrics.advances.disbursedEtb).toBeGreaterThanOrEqual(8000);
+    expect(metrics.vat.invoiceCount).toBeGreaterThanOrEqual(1);
+    expect(metrics.vat.totalVatEtb).toBeGreaterThanOrEqual(6000);
+    expect(metrics.vat.totalWithVatEtb).toBeGreaterThanOrEqual(46000);
   });
 
   it('suggests return loads for an operator', async () => {

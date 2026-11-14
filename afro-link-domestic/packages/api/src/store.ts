@@ -12,8 +12,10 @@ import {
   TrackingEvent,
   TrackingEventKind,
   TruckOperator,
+  MarketplaceMetrics,
   VatInvoice,
   computeVat,
+  haversineKm,
   nextAdvanceStatus,
   rankOperatorsForLoad,
   rankReturnLoads,
@@ -27,6 +29,8 @@ import type {
 } from '@afro-link/agent';
 import type { MarketplaceRepo } from './repo';
 import { defaultPayoutAdapters } from './payouts';
+
+const ZERO_DEADHEAD_KM = 25;
 
 export class MarketplaceStore implements AgentStore {
   constructor(
@@ -81,12 +85,17 @@ export class MarketplaceStore implements AgentStore {
     if (operator.capacityTons < load.weightTons) {
       throw new DomainError('conflict', 'Operator capacity is below load weight.');
     }
+    const deadheadKm =
+      Math.round(
+        haversineKm(operator.lastDropOffCity ?? operator.currentCity, load.origin) * 10,
+      ) / 10;
     const shipment: Shipment = {
       id: crypto.randomUUID(),
       loadId: load.id,
       operatorId: operator.id,
       assignedAt: new Date().toISOString(),
       status: 'assigned',
+      deadheadKm,
     };
     await this.repo.saveShipment(shipment);
     await this.repo.saveLoad({ ...load, status: 'assigned' });
@@ -141,6 +150,57 @@ export class MarketplaceStore implements AgentStore {
       }
     }
     return event;
+  }
+
+  async getMetrics(): Promise<MarketplaceMetrics> {
+    const [loads, shipments, advances, invoices] = await Promise.all([
+      this.repo.listLoads(),
+      this.repo.listShipments(),
+      this.repo.listAdvances(),
+      this.repo.listInvoices(),
+    ]);
+    const deadheads = shipments
+      .map((s) => s.deadheadKm)
+      .filter((km): km is number => typeof km === 'number');
+    const avgDeadheadKm =
+      deadheads.length === 0
+        ? 0
+        : Math.round((deadheads.reduce((sum, km) => sum + km, 0) / deadheads.length) * 10) / 10;
+    const zeroDeadheadShare =
+      deadheads.length === 0
+        ? 0
+        : Math.round(
+            (deadheads.filter((km) => km < ZERO_DEADHEAD_KM).length / deadheads.length) * 1000,
+          ) / 1000;
+    const disbursed = advances.filter((a) => a.status === 'disbursed' || a.status === 'recovered');
+    const byChannel = { telebirr: 0, cbe_birr: 0 };
+    for (const advance of disbursed) {
+      byChannel[advance.channel] += advance.amountEtb;
+    }
+    return {
+      loads: {
+        total: loads.length,
+        open: loads.filter((l) => l.status === 'open').length,
+        assigned: loads.filter((l) => l.status === 'assigned').length,
+        delivered: loads.filter((l) => l.status === 'delivered').length,
+      },
+      shipments: {
+        total: shipments.length,
+        delivered: shipments.filter((s) => s.status === 'delivered').length,
+      },
+      avgDeadheadKm,
+      zeroDeadheadShare,
+      advances: {
+        total: advances.length,
+        disbursedEtb: disbursed.reduce((sum, a) => sum + a.amountEtb, 0),
+        byChannel,
+      },
+      vat: {
+        invoiceCount: invoices.length,
+        totalVatEtb: invoices.reduce((sum, i) => sum + i.vatEtb, 0),
+        totalWithVatEtb: invoices.reduce((sum, i) => sum + i.totalEtb, 0),
+      },
+    };
   }
 
   async getTracking(shipmentId: string): Promise<TrackingEvent[]> {

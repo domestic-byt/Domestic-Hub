@@ -11,6 +11,7 @@ import { shipmentRoutes } from './routes/shipments';
 import { advanceRoutes } from './routes/advances';
 import { invoiceRoutes } from './routes/invoices';
 import { agentRoutes } from './routes/agent';
+import { metricsRoutes } from './routes/metrics';
 import { AuthConfig, authenticate } from './auth';
 
 export const DEFAULT_ALLOWED_ORIGINS = [
@@ -80,6 +81,7 @@ export async function buildServer(options?: {
   app.register(async (instance) => advanceRoutes(instance, store));
   app.register(async (instance) => invoiceRoutes(instance, store));
   app.register(async (instance) => agentRoutes(instance, agent));
+  app.register(async (instance) => metricsRoutes(instance, store));
 
   app.addHook('onClose', async () => {
     await repo.close();

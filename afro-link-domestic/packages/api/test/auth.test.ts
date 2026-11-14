@@ -46,6 +46,18 @@ describe('authenticated api', async () => {
     expect(res.statusCode).toBe(200);
   });
 
+  it('restricts metrics to admins', async () => {
+    const anonymous = await app.inject({ method: 'GET', url: '/metrics' });
+    expect(anonymous.statusCode).toBe(401);
+
+    const forbidden = await app.inject({ method: 'GET', url: '/metrics', headers: authed('shipper') });
+    expect(forbidden.statusCode).toBe(403);
+
+    const allowed = await app.inject({ method: 'GET', url: '/metrics', headers: authed('admin') });
+    expect(allowed.statusCode).toBe(200);
+    expect(allowed.json()).toHaveProperty('loads');
+  });
+
   it('rejects unauthenticated writes with 401', async () => {
     const res = await app.inject({
       method: 'POST',

@@ -39,6 +39,7 @@ export interface Shipment {
   assignedAt: string;
   deliveredAt?: string;
   status: ShipmentStatus;
+  deadheadKm?: number;
 }
 
 export type AdvanceChannel = 'telebirr' | 'cbe_birr';
@@ -71,6 +72,19 @@ export interface VatInvoice {
   vatEtb: number;
   totalEtb: number;
   issuedAt: string;
+}
+
+export interface MarketplaceMetrics {
+  loads: { total: number; open: number; assigned: number; delivered: number };
+  shipments: { total: number; delivered: number };
+  avgDeadheadKm: number;
+  zeroDeadheadShare: number;
+  advances: {
+    total: number;
+    disbursedEtb: number;
+    byChannel: Record<AdvanceChannel, number>;
+  };
+  vat: { invoiceCount: number; totalVatEtb: number; totalWithVatEtb: number };
 }
 
 export type TrackingEventKind =
