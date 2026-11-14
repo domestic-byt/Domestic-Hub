@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Pool } from 'pg';
 import { PgRepo } from '../src/repo-pg';
 
 const addis = { name: 'Addis Ababa', lat: 9.03, lon: 38.74 };
@@ -9,6 +10,11 @@ describe.skipIf(!process.env.DATABASE_URL)('pg repo', () => {
 
   beforeAll(async () => {
     repo = await PgRepo.connect(process.env.DATABASE_URL!);
+    const cleaner = new Pool({ connectionString: process.env.DATABASE_URL });
+    await cleaner.query(
+      'TRUNCATE operators, loads, shipments, tracking_events, fuel_advances, invoices',
+    );
+    await cleaner.end();
   });
 
   afterAll(async () => {
