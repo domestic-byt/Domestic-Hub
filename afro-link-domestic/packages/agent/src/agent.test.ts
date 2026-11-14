@@ -35,7 +35,7 @@ class FakeStore implements AgentStore {
   tracking = new Map<string, TrackingEvent[]>();
   invoices = new Map<string, VatInvoice>();
 
-  createLoad(input: NewLoadInput): Load {
+  async createLoad(input: NewLoadInput): Promise<Load> {
     const load: Load = {
       ...input,
       id: crypto.randomUUID(),
@@ -46,13 +46,13 @@ class FakeStore implements AgentStore {
     return load;
   }
 
-  rankMatches(loadId: string) {
+  async rankMatches(loadId: string) {
     const load = this.loads.get(loadId);
     if (!load) throw new DomainError('not_found', 'Load not found.');
     return rankOperatorsForLoad(load, this.operators);
   }
 
-  assignShipment(loadId: string, operatorId: string): Shipment {
+  async assignShipment(loadId: string, operatorId: string): Promise<Shipment> {
     const load = this.loads.get(loadId);
     if (!load) throw new DomainError('not_found', 'Load not found.');
     if (load.status !== 'open') {
@@ -78,7 +78,7 @@ class FakeStore implements AgentStore {
     return shipment;
   }
 
-  requestFuelAdvance(input: NewAdvanceInput): FuelAdvance {
+  async requestFuelAdvance(input: NewAdvanceInput): Promise<FuelAdvance> {
     const shipment = this.shipments.get(input.shipmentId);
     if (!shipment) throw new DomainError('not_found', 'Shipment not found.');
     const load = this.loads.get(shipment.loadId);
@@ -105,14 +105,14 @@ class FakeStore implements AgentStore {
     return advance;
   }
 
-  getTracking(shipmentId: string): TrackingEvent[] {
+  async getTracking(shipmentId: string): Promise<TrackingEvent[]> {
     if (!this.shipments.has(shipmentId)) {
       throw new DomainError('not_found', 'Shipment not found.');
     }
     return this.tracking.get(shipmentId) ?? [];
   }
 
-  createInvoice(input: NewInvoiceInput): VatInvoice {
+  async createInvoice(input: NewInvoiceInput): Promise<VatInvoice> {
     const shipment = this.shipments.get(input.shipmentId);
     if (!shipment) throw new DomainError('not_found', 'Shipment not found.');
     if (shipment.status !== 'delivered') {
@@ -135,15 +135,15 @@ class FakeStore implements AgentStore {
     return invoice;
   }
 
-  findShipment(shipmentId: string): Shipment | undefined {
+  async findShipment(shipmentId: string): Promise<Shipment | undefined> {
     return this.shipments.get(shipmentId);
   }
 
-  findLatestShipment(): Shipment | undefined {
+  async findLatestShipment(): Promise<Shipment | undefined> {
     return [...this.shipments.values()].at(-1);
   }
 
-  findLatestLoad(): Load | undefined {
+  async findLatestLoad(): Promise<Load | undefined> {
     return [...this.loads.values()].at(-1);
   }
 
@@ -286,7 +286,7 @@ describe('DomesticAgent', () => {
     const early = await agent.handle('issue the VAT invoice');
     expect(early.reply).toMatch(/⚠️.*delivered/);
 
-    store.deliver(store.findLatestShipment()!.id);
+    store.deliver((await store.findLatestShipment())!.id);
     const result = await agent.handle('issue the VAT invoice', {
       shipperTin: '0011223345',
       operatorTin: '0099887766',

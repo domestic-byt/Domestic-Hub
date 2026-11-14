@@ -2,7 +2,8 @@ import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import { AdvanceChannel, PayoutAdapter } from '@afro-link/shared';
 import { DomesticAgent, LlmAdapter, MistralLlmAdapter } from '@afro-link/agent';
-import { Repo } from './repo';
+import { InMemoryRepo, MarketplaceRepo } from './repo';
+import { PgRepo } from './repo-pg';
 import { MarketplaceStore } from './store';
 import { loadRoutes, operatorRoutes } from './routes/loads';
 import { shipmentRoutes } from './routes/shipments';
@@ -25,12 +26,25 @@ export function allowedOrigins(): string[] {
   return fromEnv && fromEnv.length > 0 ? fromEnv : DEFAULT_ALLOWED_ORIGINS;
 }
 
-export function buildServer(options?: {
+export async function resolveRepo(explicit?: MarketplaceRepo): Promise<MarketplaceRepo> {
+  if (explicit) {
+    await explicit.initialize();
+    return explicit;
+  }
+  if (process.env.DATABASE_URL) {
+    return PgRepo.connect(process.env.DATABASE_URL);
+  }
+  return new InMemoryRepo();
+}
+
+export async function buildServer(options?: {
   payouts?: Record<AdvanceChannel, PayoutAdapter>;
   llm?: LlmAdapter;
-}): FastifyInstance {
+  repo?: MarketplaceRepo;
+}): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
-  const store = new MarketplaceStore(new Repo(), options?.payouts);
+  const repo = await resolveRepo(options?.repo);
+  const store = new MarketplaceStore(repo, options?.payouts);
   const llm =
     options?.llm ??
     (process.env.MISTRAL_API_KEY
@@ -55,6 +69,10 @@ export function buildServer(options?: {
   app.register(async (instance) => invoiceRoutes(instance, store));
   app.register(async (instance) => agentRoutes(instance, agent));
 
+  app.addHook('onClose', async () => {
+    await repo.close();
+  });
+
   return app;
 }
 
@@ -63,7 +81,7 @@ const isDirectRun = process.argv[1] && import.meta.url.endsWith(process.argv[1].
 if (isDirectRun) {
   const port = Number(process.env.PORT ?? 3000);
   buildServer()
-    .listen({ port, host: '127.0.0.1' })
+    .then((app) => app.listen({ port, host: '127.0.0.1' }))
     .then((address) => console.log(`afro-link-domestic api listening on ${address}`))
     .catch((err) => {
       console.error(err);

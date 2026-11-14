@@ -29,7 +29,7 @@ export class DomesticAgent {
 
   async handle(message: string, ctx: AgentContext = {}): Promise<AgentResult> {
     const intent = detectIntent(message);
-    const outcome = this.execute(intent, message, ctx);
+    const outcome = await this.execute(intent, message, ctx);
     let reply = outcome.reply;
     if (this.llm) {
       try {
@@ -44,25 +44,25 @@ export class DomesticAgent {
     return { intent, reply, data: outcome.data };
   }
 
-  private execute(
+  private async execute(
     intent: AgentIntent,
     message: string,
     ctx: AgentContext,
-  ): { reply: string; data?: unknown } {
+  ): Promise<{ reply: string; data?: unknown }> {
     try {
       switch (intent) {
         case 'post_load':
-          return this.postLoad(message, ctx);
+          return await this.postLoad(message, ctx);
         case 'find_matches':
-          return this.findMatches(message);
+          return await this.findMatches(message);
         case 'assign_truck':
-          return this.assignTruck(message);
+          return await this.assignTruck(message);
         case 'request_advance':
-          return this.requestAdvance(message, ctx);
+          return await this.requestAdvance(message, ctx);
         case 'track_shipment':
-          return this.trackShipment(message);
+          return await this.trackShipment(message);
         case 'create_invoice':
-          return this.createInvoice(message, ctx);
+          return await this.createInvoice(message, ctx);
         case 'help':
           return { reply: HELP_TEXT };
         default:
@@ -76,7 +76,7 @@ export class DomesticAgent {
     }
   }
 
-  private postLoad(message: string, ctx: AgentContext) {
+  private async postLoad(message: string, ctx: AgentContext) {
     const slots = extractSlots(message);
     const [origin, destination] = slots.cities;
     if (!origin || !destination || !slots.weightTons || !slots.moneyEtb) {
@@ -85,7 +85,7 @@ export class DomesticAgent {
           'I can post that load. Please include origin, destination, weight in tons and price in birr — e.g. "Post 20 tons of coffee from Jimma to Addis Ababa for 40000 birr".',
       };
     }
-    const load = this.store.createLoad({
+    const load = await this.store.createLoad({
       shipperId: ctx.shipperId ?? 'guest',
       origin,
       destination,
@@ -98,16 +98,16 @@ export class DomesticAgent {
     };
   }
 
-  private findMatches(message: string) {
+  private async findMatches(message: string) {
     const slots = extractSlots(message);
-    const loadId = slots.ids[0] ?? this.store.findLatestLoad()?.id;
+    const loadId = slots.ids[0] ?? (await this.store.findLatestLoad())?.id;
     if (!loadId) {
       return {
         reply:
           'Which load? Share the load id, or post one first — e.g. "Post 20 tons from Jimma to Addis Ababa for 40000 birr".',
       };
     }
-    const matches = this.store.rankMatches(loadId);
+    const matches = await this.store.rankMatches(loadId);
     if (matches.length === 0) {
       return {
         reply: `No available trucks can carry load ${loadId} right now.`,
@@ -127,9 +127,9 @@ export class DomesticAgent {
     };
   }
 
-  private assignTruck(message: string) {
+  private async assignTruck(message: string) {
     const slots = extractSlots(message);
-    const loadId = slots.ids[0] ?? this.store.findLatestLoad()?.id;
+    const loadId = slots.ids[0] ?? (await this.store.findLatestLoad())?.id;
     if (!loadId) {
       return {
         reply:
@@ -137,22 +137,22 @@ export class DomesticAgent {
       };
     }
     const operatorId =
-      slots.ids[1] ?? this.store.rankMatches(loadId)[0]?.operatorId;
+      slots.ids[1] ?? (await this.store.rankMatches(loadId))[0]?.operatorId;
     if (!operatorId) {
       return { reply: `No available trucks for load ${loadId}.` };
     }
-    const shipment = this.store.assignShipment(loadId, operatorId);
+    const shipment = await this.store.assignShipment(loadId, operatorId);
     return {
       reply: `Shipment ${shipment.id} assigned: load ${loadId} → operator ${operatorId}. The driver can now request a fuel advance, e.g. "request an 8000 birr telebirr advance".`,
       data: shipment,
     };
   }
 
-  private requestAdvance(message: string, ctx: AgentContext) {
+  private async requestAdvance(message: string, ctx: AgentContext) {
     const slots = extractSlots(message);
     const shipment = slots.ids[0]
-      ? this.store.findShipment(slots.ids[0])
-      : this.store.findLatestShipment();
+      ? await this.store.findShipment(slots.ids[0])
+      : await this.store.findLatestShipment();
     if (!shipment) {
       return {
         reply: 'Which shipment is the advance for? Share the shipment id.',
@@ -164,7 +164,7 @@ export class DomesticAgent {
           'How much fuel advance? Example: "request an 8000 birr telebirr advance".',
       };
     }
-    const advance = this.store.requestFuelAdvance({
+    const advance = await this.store.requestFuelAdvance({
       operatorId: ctx.operatorId ?? shipment.operatorId,
       shipmentId: shipment.id,
       amountEtb: slots.moneyEtb,
@@ -176,17 +176,17 @@ export class DomesticAgent {
     };
   }
 
-  private trackShipment(message: string) {
+  private async trackShipment(message: string) {
     const slots = extractSlots(message);
     const shipment = slots.ids[0]
-      ? this.store.findShipment(slots.ids[0])
-      : this.store.findLatestShipment();
+      ? await this.store.findShipment(slots.ids[0])
+      : await this.store.findLatestShipment();
     if (!shipment) {
       return {
         reply: 'Which shipment? Share the shipment id, or assign a load first.',
       };
     }
-    const events = this.store.getTracking(shipment.id);
+    const events = await this.store.getTracking(shipment.id);
     if (events.length === 0) {
       return {
         reply: `No tracking events yet for shipment ${shipment.id}.`,
@@ -205,17 +205,17 @@ export class DomesticAgent {
     };
   }
 
-  private createInvoice(message: string, ctx: AgentContext) {
+  private async createInvoice(message: string, ctx: AgentContext) {
     const slots = extractSlots(message);
     const shipment = slots.ids[0]
-      ? this.store.findShipment(slots.ids[0])
-      : this.store.findLatestShipment();
+      ? await this.store.findShipment(slots.ids[0])
+      : await this.store.findLatestShipment();
     if (!shipment) {
       return {
         reply: 'Which shipment should I invoice? Share the shipment id.',
       };
     }
-    const invoice = this.store.createInvoice({
+    const invoice = await this.store.createInvoice({
       shipmentId: shipment.id,
       shipperTin: ctx.shipperTin ?? 'PENDING',
       operatorTin: ctx.operatorTin ?? 'PENDING',

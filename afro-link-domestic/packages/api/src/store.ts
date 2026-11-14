@@ -23,54 +23,54 @@ import type {
   NewInvoiceInput,
   NewLoadInput,
 } from '@afro-link/agent';
-import { Repo } from './repo';
+import type { MarketplaceRepo } from './repo';
 import { defaultPayoutAdapters } from './payouts';
 
 export class MarketplaceStore implements AgentStore {
   constructor(
-    private readonly repo: Repo,
+    private readonly repo: MarketplaceRepo,
     private readonly payouts: Record<AdvanceChannel, PayoutAdapter> = defaultPayoutAdapters(),
   ) {}
 
-  createOperator(input: {
+  async createOperator(input: {
     name: string;
     phone: string;
     truckPlate: string;
     capacityTons: number;
     currentCity: City;
     lastDropOffCity?: City;
-  }): TruckOperator {
+  }): Promise<TruckOperator> {
     const operator: TruckOperator = {
       ...input,
       id: crypto.randomUUID(),
       status: 'available',
     };
-    this.repo.operators.set(operator.id, operator);
+    await this.repo.saveOperator(operator);
     return operator;
   }
 
-  createLoad(input: NewLoadInput): Load {
+  async createLoad(input: NewLoadInput): Promise<Load> {
     const load: Load = {
       ...input,
       id: crypto.randomUUID(),
       availableFrom: input.availableFrom ?? new Date().toISOString(),
       status: 'open',
     };
-    this.repo.loads.set(load.id, load);
+    await this.repo.saveLoad(load);
     return load;
   }
 
-  rankMatches(loadId: string): OperatorMatch[] {
-    const load = this.getLoad(loadId);
-    return rankOperatorsForLoad(load, [...this.repo.operators.values()]);
+  async rankMatches(loadId: string): Promise<OperatorMatch[]> {
+    const load = await this.getLoad(loadId);
+    return rankOperatorsForLoad(load, await this.repo.listOperators());
   }
 
-  assignShipment(loadId: string, operatorId: string): Shipment {
-    const load = this.getLoad(loadId);
+  async assignShipment(loadId: string, operatorId: string): Promise<Shipment> {
+    const load = await this.getLoad(loadId);
     if (load.status !== 'open') {
       throw new DomainError('conflict', `Load is ${load.status}, not open.`);
     }
-    const operator = this.getOperator(operatorId);
+    const operator = await this.getOperator(operatorId);
     if (operator.capacityTons < load.weightTons) {
       throw new DomainError('conflict', 'Operator capacity is below load weight.');
     }
@@ -81,28 +81,26 @@ export class MarketplaceStore implements AgentStore {
       assignedAt: new Date().toISOString(),
       status: 'assigned',
     };
-    this.repo.shipments.set(shipment.id, shipment);
-    this.repo.loads.set(load.id, { ...load, status: 'assigned' });
-    this.repo.operators.set(operator.id, { ...operator, status: 'on_trip' });
-    this.repo.tracking.set(shipment.id, [
-      {
-        shipmentId: shipment.id,
-        at: shipment.assignedAt,
-        kind: 'assigned',
-        location: load.origin,
-        note: `Assigned to ${operator.name} (${operator.truckPlate}).`,
-      },
-    ]);
+    await this.repo.saveShipment(shipment);
+    await this.repo.saveLoad({ ...load, status: 'assigned' });
+    await this.repo.saveOperator({ ...operator, status: 'on_trip' });
+    await this.repo.appendTrackingEvent({
+      shipmentId: shipment.id,
+      at: shipment.assignedAt,
+      kind: 'assigned',
+      location: load.origin,
+      note: `Assigned to ${operator.name} (${operator.truckPlate}).`,
+    });
     return shipment;
   }
 
-  addTrackingEvent(
+  async addTrackingEvent(
     shipmentId: string,
     kind: TrackingEventKind,
     location?: City,
     note?: string,
-  ): TrackingEvent {
-    const shipment = this.getShipment(shipmentId);
+  ): Promise<TrackingEvent> {
+    const shipment = await this.getShipment(shipmentId);
     const event: TrackingEvent = {
       shipmentId: shipment.id,
       at: new Date().toISOString(),
@@ -110,26 +108,24 @@ export class MarketplaceStore implements AgentStore {
       location,
       note,
     };
-    const events = this.repo.tracking.get(shipment.id) ?? [];
-    events.push(event);
-    this.repo.tracking.set(shipment.id, events);
+    await this.repo.appendTrackingEvent(event);
 
     if (kind === 'picked_up') {
-      this.repo.shipments.set(shipment.id, { ...shipment, status: 'in_transit' });
+      await this.repo.saveShipment({ ...shipment, status: 'in_transit' });
     }
     if (kind === 'delivered') {
-      this.repo.shipments.set(shipment.id, {
+      await this.repo.saveShipment({
         ...shipment,
         status: 'delivered',
         deliveredAt: event.at,
       });
-      const load = this.repo.loads.get(shipment.loadId);
+      const load = await this.repo.getLoad(shipment.loadId);
       if (load) {
-        this.repo.loads.set(load.id, { ...load, status: 'delivered' });
+        await this.repo.saveLoad({ ...load, status: 'delivered' });
       }
-      const operator = this.repo.operators.get(shipment.operatorId);
+      const operator = await this.repo.getOperator(shipment.operatorId);
       if (operator) {
-        this.repo.operators.set(operator.id, {
+        await this.repo.saveOperator({
           ...operator,
           status: 'available',
           currentCity: location ?? load?.destination ?? operator.currentCity,
@@ -140,21 +136,21 @@ export class MarketplaceStore implements AgentStore {
     return event;
   }
 
-  getTracking(shipmentId: string): TrackingEvent[] {
-    this.getShipment(shipmentId);
-    return this.repo.tracking.get(shipmentId) ?? [];
+  async getTracking(shipmentId: string): Promise<TrackingEvent[]> {
+    await this.getShipment(shipmentId);
+    return this.repo.getTrackingEvents(shipmentId);
   }
 
-  requestFuelAdvance(input: NewAdvanceInput): FuelAdvance {
-    const shipment = this.getShipment(input.shipmentId);
+  async requestFuelAdvance(input: NewAdvanceInput): Promise<FuelAdvance> {
+    const shipment = await this.getShipment(input.shipmentId);
     if (shipment.operatorId !== input.operatorId) {
       throw new DomainError('conflict', 'Shipment does not belong to this operator.');
     }
-    const load = this.getLoad(shipment.loadId);
+    const load = await this.getLoad(shipment.loadId);
     const errors = validateAdvanceRequest({
       amountEtb: input.amountEtb,
       load,
-      activeAdvances: this.repo.activeAdvancesFor(input.operatorId),
+      activeAdvances: await this.repo.activeAdvancesFor(input.operatorId),
     });
     if (errors.length > 0) {
       throw new DomainError('validation', errors[0]!, errors);
@@ -165,12 +161,12 @@ export class MarketplaceStore implements AgentStore {
       status: 'requested',
       requestedAt: new Date().toISOString(),
     };
-    this.repo.advances.set(advance.id, advance);
+    await this.repo.saveAdvance(advance);
     return advance;
   }
 
   async transitionAdvance(id: string, action: AdvanceAction): Promise<FuelAdvance> {
-    const advance = this.repo.advances.get(id);
+    const advance = await this.repo.getAdvance(id);
     if (!advance) {
       throw new DomainError('not_found', 'Advance not found.');
     }
@@ -183,7 +179,7 @@ export class MarketplaceStore implements AgentStore {
     }
     let updated: FuelAdvance = { ...advance, status: next };
     if (action === 'disburse' || action === 'recover') {
-      const operator = this.repo.operators.get(advance.operatorId);
+      const operator = await this.repo.getOperator(advance.operatorId);
       const request = {
         advanceId: advance.id,
         operatorId: advance.operatorId,
@@ -202,19 +198,19 @@ export class MarketplaceStore implements AgentStore {
       }
       updated = { ...updated, payoutReference: payout.reference };
     }
-    this.repo.advances.set(id, updated);
+    await this.repo.saveAdvance(updated);
     return updated;
   }
 
-  createInvoice(input: NewInvoiceInput): VatInvoice {
-    const shipment = this.getShipment(input.shipmentId);
+  async createInvoice(input: NewInvoiceInput): Promise<VatInvoice> {
+    const shipment = await this.getShipment(input.shipmentId);
     if (shipment.status !== 'delivered') {
       throw new DomainError(
         'conflict',
         'Invoices can only be issued for delivered shipments.',
       );
     }
-    const load = this.getLoad(shipment.loadId);
+    const load = await this.getLoad(shipment.loadId);
     const vat = computeVat(load.offeredPriceEtb);
     const invoice: VatInvoice = {
       id: crypto.randomUUID(),
@@ -226,64 +222,64 @@ export class MarketplaceStore implements AgentStore {
       totalEtb: vat.totalEtb,
       issuedAt: new Date().toISOString(),
     };
-    this.repo.invoices.set(invoice.id, invoice);
+    await this.repo.saveInvoice(invoice);
     return invoice;
   }
 
-  getInvoice(id: string): VatInvoice {
-    const invoice = this.repo.invoices.get(id);
+  async getInvoice(id: string): Promise<VatInvoice> {
+    const invoice = await this.repo.getInvoice(id);
     if (!invoice) {
       throw new DomainError('not_found', 'Invoice not found.');
     }
     return invoice;
   }
 
-  findShipment(shipmentId: string): Shipment | undefined {
-    return this.repo.shipments.get(shipmentId);
+  async findShipment(shipmentId: string): Promise<Shipment | undefined> {
+    return this.repo.getShipment(shipmentId);
   }
 
-  findLatestShipment(): Shipment | undefined {
-    return [...this.repo.shipments.values()].at(-1);
+  async findLatestShipment(): Promise<Shipment | undefined> {
+    return this.repo.latestShipment();
   }
 
-  findLatestLoad(): Load | undefined {
-    return [...this.repo.loads.values()].at(-1);
+  async findLatestLoad(): Promise<Load | undefined> {
+    return this.repo.latestLoad();
   }
 
-  listOperators(): TruckOperator[] {
-    return [...this.repo.operators.values()];
+  async listOperators(): Promise<TruckOperator[]> {
+    return this.repo.listOperators();
   }
 
-  listLoads(): Load[] {
-    return [...this.repo.loads.values()];
+  async listLoads(): Promise<Load[]> {
+    return this.repo.listLoads();
   }
 
-  listShipments(): Shipment[] {
-    return [...this.repo.shipments.values()];
+  async listShipments(): Promise<Shipment[]> {
+    return this.repo.listShipments();
   }
 
-  listAdvances(): FuelAdvance[] {
-    return [...this.repo.advances.values()];
+  async listAdvances(): Promise<FuelAdvance[]> {
+    return this.repo.listAdvances();
   }
 
-  listInvoices(): VatInvoice[] {
-    return [...this.repo.invoices.values()];
+  async listInvoices(): Promise<VatInvoice[]> {
+    return this.repo.listInvoices();
   }
 
-  private getLoad(id: string): Load {
-    const load = this.repo.loads.get(id);
+  private async getLoad(id: string): Promise<Load> {
+    const load = await this.repo.getLoad(id);
     if (!load) throw new DomainError('not_found', 'Load not found.');
     return load;
   }
 
-  private getOperator(id: string): TruckOperator {
-    const operator = this.repo.operators.get(id);
+  private async getOperator(id: string): Promise<TruckOperator> {
+    const operator = await this.repo.getOperator(id);
     if (!operator) throw new DomainError('not_found', 'Operator not found.');
     return operator;
   }
 
-  private getShipment(id: string): Shipment {
-    const shipment = this.repo.shipments.get(id);
+  private async getShipment(id: string): Promise<Shipment> {
+    const shipment = await this.repo.getShipment(id);
     if (!shipment) throw new DomainError('not_found', 'Shipment not found.');
     return shipment;
   }

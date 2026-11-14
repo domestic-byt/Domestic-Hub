@@ -78,31 +78,31 @@ describe('MistralLlmAdapter', () => {
 
 describe('agent LLM fallback', () => {
   class EmptyStore implements AgentStore {
-    createLoad(): never {
+    async createLoad(): Promise<never> {
       throw new Error('not used');
     }
-    rankMatches(): never {
+    async rankMatches(): Promise<never> {
       throw new Error('not used');
     }
-    assignShipment(): never {
+    async assignShipment(): Promise<never> {
       throw new Error('not used');
     }
-    requestFuelAdvance(): never {
+    async requestFuelAdvance(): Promise<never> {
       throw new Error('not used');
     }
-    getTracking(): never {
+    async getTracking(): Promise<never> {
       throw new Error('not used');
     }
-    createInvoice(): never {
+    async createInvoice(): Promise<never> {
       throw new Error('not used');
     }
-    findShipment(): undefined {
+    async findShipment(): Promise<undefined> {
       return undefined;
     }
-    findLatestShipment(): undefined {
+    async findLatestShipment(): Promise<undefined> {
       return undefined;
     }
-    findLatestLoad(): undefined {
+    async findLatestLoad(): Promise<undefined> {
       return undefined;
     }
   }

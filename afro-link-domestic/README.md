@@ -57,9 +57,17 @@ Canonical domain: **https://afro-link.domestic.com.et** (Afro-Link Domestic, par
 - To attach the domain on Vercel (where this repo previews deploy): Vercel dashboard → project **domestic-hub** → Settings → Domains → add `afro-link.domestic.com.et`; then at the DNS host for `domestic.com.et`, create the record Vercel shows (typically `CNAME afro-link → cname.vercel-dns.com`).
 - Health check: `GET /health` reports `{ status, service, domain }`.
 
+## Persistence
+
+The API stores all marketplace state through the `MarketplaceRepo` interface:
+
+- **In-memory** (`InMemoryRepo`) — default when `DATABASE_URL` is unset; ideal for local dev and tests.
+- **PostgreSQL** (`PgRepo`) — used automatically when `DATABASE_URL` is set, e.g. `postgres://user:pass@host:5432/db`. `PgRepo` creates its schema on startup (`CREATE TABLE IF NOT EXISTS` for operators, loads, shipments, tracking_events, fuel_advances, invoices), so no migration step is needed. `buildServer({ repo })` also accepts an explicit repo instance.
+- The Postgres path is exercised in CI against a `postgres:16` service container; locally the `repo-pg` tests skip when `DATABASE_URL` is absent.
+
 ## Roadmap
 
 - `apps/web` — shipper dashboard and driver app (Amharic/English).
 - Real Telebirr (SuperApp API) / CBE Birr gateway credentials behind the existing `PayoutAdapter` interface.
 - Voice input for the Domestic AI Agent.
-- Persistent storage (PostgreSQL) replacing the in-memory repo, plus auth via DomesticHub SSO.
+- Auth via DomesticHub SSO.

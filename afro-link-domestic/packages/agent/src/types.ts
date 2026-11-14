@@ -32,15 +32,15 @@ export interface NewInvoiceInput {
 }
 
 export interface AgentStore {
-  createLoad(input: NewLoadInput): Load;
-  rankMatches(loadId: string): OperatorMatch[];
-  assignShipment(loadId: string, operatorId: string): Shipment;
-  requestFuelAdvance(input: NewAdvanceInput): FuelAdvance;
-  getTracking(shipmentId: string): TrackingEvent[];
-  createInvoice(input: NewInvoiceInput): VatInvoice;
-  findShipment(shipmentId: string): Shipment | undefined;
-  findLatestShipment(): Shipment | undefined;
-  findLatestLoad(): Load | undefined;
+  createLoad(input: NewLoadInput): Promise<Load>;
+  rankMatches(loadId: string): Promise<OperatorMatch[]>;
+  assignShipment(loadId: string, operatorId: string): Promise<Shipment>;
+  requestFuelAdvance(input: NewAdvanceInput): Promise<FuelAdvance>;
+  getTracking(shipmentId: string): Promise<TrackingEvent[]>;
+  createInvoice(input: NewInvoiceInput): Promise<VatInvoice>;
+  findShipment(shipmentId: string): Promise<Shipment | undefined>;
+  findLatestShipment(): Promise<Shipment | undefined>;
+  findLatestLoad(): Promise<Load | undefined>;
 }
 
 export interface ChatMessage {

@@ -5,8 +5,8 @@ import { buildServer } from '../src/server';
 const addis = { name: 'Addis Ababa', lat: 9.03, lon: 38.74 };
 const jimma = { name: 'Jimma', lat: 7.67, lon: 36.83 };
 
-describe('marketplace api', () => {
-  const app = buildServer();
+describe('marketplace api', async () => {
+  const app = await buildServer();
 
   beforeAll(async () => {
     await app.ready();
@@ -186,7 +186,7 @@ describe('marketplace api', () => {
       telebirr: failingAdapter('telebirr'),
       cbe_birr: failingAdapter('cbe_birr'),
     };
-    const app = buildServer({ payouts: failing });
+    const app = await buildServer({ payouts: failing });
     await app.ready();
     try {
       const operatorRes = await app.inject({
@@ -300,8 +300,8 @@ describe('marketplace api', () => {
   });
 });
 
-describe('domestic ai agent endpoint', () => {
-  const app = buildServer();
+describe('domestic ai agent endpoint', async () => {
+  const app = await buildServer();
 
   beforeAll(async () => {
     await app.ready();
