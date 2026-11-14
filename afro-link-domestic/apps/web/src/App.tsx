@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, getAuthToken, setAuthToken } from './api';
+import { Lang, loadLang, saveLang, STRINGS, Strings } from './i18n';
+import { useVoiceInput } from './useVoiceInput';
 import type { Load, OperatorMatch, TrackingEvent } from './types';
 
 const CITIES = [
@@ -43,38 +45,53 @@ type Tab = 'shipper' | 'driver' | 'track' | 'agent';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('shipper');
+  const [lang, setLang] = useState<Lang>(loadLang);
   const [token, setToken] = useState(getAuthToken() ?? '');
+  const t = STRINGS[lang];
 
   const applyToken = (value: string) => {
     setToken(value);
     setAuthToken(value);
   };
 
+  const applyLang = (value: Lang) => {
+    setLang(value);
+    saveLang(value);
+  };
+
   return (
     <div className="app">
       <header>
-        <h1>
-          Afro-Link Domestic <span className="am">አፍሮ-ሊንክ ዶሜስቲክ</span>
-        </h1>
-        <p className="tagline">
-          Ethiopia's AI-powered freight marketplace · part of DomesticHub
-        </p>
+        <div className="row spread">
+          <h1>
+            Afro-Link Domestic <span className="am">አፍሮ-ሊንክ ዶሜስቲክ</span>
+          </h1>
+          <div className="lang-toggle">
+            <button className={lang === 'en' ? 'active' : ''} onClick={() => applyLang('en')}>
+              EN
+            </button>
+            <button className={lang === 'am' ? 'active' : ''} onClick={() => applyLang('am')}>
+              አማ
+            </button>
+          </div>
+        </div>
+        <p className="tagline">{t.tagline}</p>
         <div className="auth-row">
           <input
             type="password"
             value={token}
-            placeholder="DomesticHub SSO token (optional)"
+            placeholder={t.tokenPlaceholder}
             onChange={(e) => applyToken(e.target.value)}
           />
-          {token ? <span className="auth-ok">signed in</span> : <span className="auth-hint">guest mode</span>}
+          {token ? <span className="auth-ok">{t.signedIn}</span> : <span className="auth-hint">{t.guestMode}</span>}
         </div>
         <nav>
           {(
             [
-              ['shipper', 'Shipper · አቅራቢ'],
-              ['driver', 'Driver · ሹፌር'],
-              ['track', 'Tracking · ክትትል'],
-              ['agent', 'AI Agent'],
+              ['shipper', t.tabShipper],
+              ['driver', t.tabDriver],
+              ['track', t.tabTrack],
+              ['agent', t.tabAgent],
             ] as Array<[Tab, string]>
           ).map(([id, label]) => (
             <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
@@ -84,10 +101,10 @@ export default function App() {
         </nav>
       </header>
       <main>
-        {tab === 'shipper' && <ShipperPanel />}
-        {tab === 'driver' && <DriverPanel />}
-        {tab === 'track' && <TrackPanel />}
-        {tab === 'agent' && <AgentPanel />}
+        {tab === 'shipper' && <ShipperPanel t={t} />}
+        {tab === 'driver' && <DriverPanel t={t} />}
+        {tab === 'track' && <TrackPanel t={t} />}
+        {tab === 'agent' && <AgentPanel t={t} lang={lang} />}
       </main>
     </div>
   );
@@ -98,7 +115,7 @@ function ErrorBox({ error }: { error: string | null }) {
   return <div className="error">⚠️ {error}</div>;
 }
 
-function ShipperPanel() {
+function ShipperPanel({ t }: { t: Strings }) {
   const [loads, setLoads] = useState<Load[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [matches, setMatches] = useState<Record<string, OperatorMatch[]>>({});
@@ -155,7 +172,7 @@ function ShipperPanel() {
       const list = matches[loadId] ?? (await api.getMatches(loadId));
       const top = list[0];
       if (!top) {
-        setError('No available trucks for this load.');
+        setError(t.noTrucks);
         return;
       }
       await api.createShipment(loadId, top.operatorId);
@@ -167,18 +184,18 @@ function ShipperPanel() {
 
   return (
     <section>
-      <h2>Post a load · ጭነት ይላኩ</h2>
+      <h2>{t.postLoad}</h2>
       <ErrorBox error={error} />
       <form onSubmit={submit} className="card row">
         <label>
-          Shipper ID
+          {t.shipperId}
           <input
             value={form.shipperId}
             onChange={(e) => setForm({ ...form, shipperId: e.target.value })}
           />
         </label>
         <label>
-          From
+          {t.from}
           <select
             value={form.origin}
             onChange={(e) => setForm({ ...form, origin: e.target.value })}
@@ -189,7 +206,7 @@ function ShipperPanel() {
           </select>
         </label>
         <label>
-          To
+          {t.to}
           <select
             value={form.destination}
             onChange={(e) => setForm({ ...form, destination: e.target.value })}
@@ -200,7 +217,7 @@ function ShipperPanel() {
           </select>
         </label>
         <label>
-          Tons
+          {t.tons}
           <input
             type="number"
             min="1"
@@ -210,7 +227,7 @@ function ShipperPanel() {
           />
         </label>
         <label>
-          Price (ETB)
+          {t.price}
           <input
             type="number"
             min="1"
@@ -218,11 +235,11 @@ function ShipperPanel() {
             onChange={(e) => setForm({ ...form, offeredPriceEtb: Number(e.target.value) })}
           />
         </label>
-        <button type="submit">Post load</button>
+        <button type="submit">{t.postLoadBtn}</button>
       </form>
 
-      <h2>Loads · ጭነቶች</h2>
-      {loads.length === 0 && <p>No loads yet.</p>}
+      <h2>{t.loads}</h2>
+      {loads.length === 0 && <p>{t.noLoads}</p>}
       {loads.map((load) => (
         <div key={load.id} className="card">
           <div className="row spread">
@@ -237,9 +254,9 @@ function ShipperPanel() {
             <span className="muted">{load.id}</span>
           </div>
           <div className="row">
-            <button onClick={() => findMatches(load.id)}>Find matches</button>
+            <button onClick={() => findMatches(load.id)}>{t.findMatches}</button>
             {load.status === 'open' && (
-              <button onClick={() => assignTop(load.id)}>Assign top match</button>
+              <button onClick={() => assignTop(load.id)}>{t.assignTopMatch}</button>
             )}
           </div>
           {matches[load.id] && (
@@ -258,7 +275,7 @@ function ShipperPanel() {
   );
 }
 
-function DriverPanel() {
+function DriverPanel({ t }: { t: Strings }) {
   const [operators, setOperators] = useState<Awaited<ReturnType<typeof api.listOperators>>>([]);
   const [advances, setAdvances] = useState<Awaited<ReturnType<typeof api.listAdvances>>>([]);
   const [error, setError] = useState<string | null>(null);
@@ -334,32 +351,32 @@ function DriverPanel() {
 
   return (
     <section>
-      <h2>Register truck · መኪና ያስመዝግቡ</h2>
+      <h2>{t.registerTruck}</h2>
       <ErrorBox error={error} />
       <form onSubmit={register} className="card row">
         <label>
-          Name
+          {t.name}
           <input
             value={opForm.name}
             onChange={(e) => setOpForm({ ...opForm, name: e.target.value })}
           />
         </label>
         <label>
-          Phone
+          {t.phone}
           <input
             value={opForm.phone}
             onChange={(e) => setOpForm({ ...opForm, phone: e.target.value })}
           />
         </label>
         <label>
-          Plate
+          {t.plate}
           <input
             value={opForm.truckPlate}
             onChange={(e) => setOpForm({ ...opForm, truckPlate: e.target.value })}
           />
         </label>
         <label>
-          Capacity (t)
+          {t.capacity}
           <input
             type="number"
             min="1"
@@ -368,7 +385,7 @@ function DriverPanel() {
           />
         </label>
         <label>
-          Current city
+          {t.currentCity}
           <select
             value={opForm.currentCity}
             onChange={(e) => setOpForm({ ...opForm, currentCity: e.target.value })}
@@ -378,27 +395,27 @@ function DriverPanel() {
             ))}
           </select>
         </label>
-        <button type="submit">Register</button>
+        <button type="submit">{t.registerBtn}</button>
       </form>
 
-      <h2>Fuel advance · የነዳጅ ቅድመ ክፍያ</h2>
+      <h2>{t.fuelAdvance}</h2>
       <form onSubmit={requestAdvance} className="card row">
         <label>
-          Operator ID
+          {t.operatorId}
           <input
             value={advForm.operatorId}
             onChange={(e) => setAdvForm({ ...advForm, operatorId: e.target.value })}
           />
         </label>
         <label>
-          Shipment ID
+          {t.shipmentId}
           <input
             value={advForm.shipmentId}
             onChange={(e) => setAdvForm({ ...advForm, shipmentId: e.target.value })}
           />
         </label>
         <label>
-          Amount (ETB)
+          {t.amount}
           <input
             type="number"
             min="1"
@@ -407,7 +424,7 @@ function DriverPanel() {
           />
         </label>
         <label>
-          Channel
+          {t.channel}
           <select
             value={advForm.channel}
             onChange={(e) => setAdvForm({ ...advForm, channel: e.target.value })}
@@ -416,11 +433,11 @@ function DriverPanel() {
             <option value="cbe_birr">CBE Birr</option>
           </select>
         </label>
-        <button type="submit">Request</button>
+        <button type="submit">{t.requestBtn}</button>
       </form>
 
       <h2>Advances</h2>
-      {advances.length === 0 && <p>No advances yet.</p>}
+      {advances.length === 0 && <p>{t.noAdvances}</p>}
       {advances.map((a) => (
         <div key={a.id} className="card">
           <div className="row spread">
@@ -436,15 +453,15 @@ function DriverPanel() {
           <div className="row">
             {a.status === 'requested' && (
               <>
-                <button onClick={() => transition(a.id, 'approve')}>Approve</button>
-                <button onClick={() => transition(a.id, 'reject')}>Reject</button>
+                <button onClick={() => transition(a.id, 'approve')}>{t.approve}</button>
+                <button onClick={() => transition(a.id, 'reject')}>{t.reject}</button>
               </>
             )}
             {a.status === 'approved' && (
-              <button onClick={() => transition(a.id, 'disburse')}>Disburse</button>
+              <button onClick={() => transition(a.id, 'disburse')}>{t.disburse}</button>
             )}
             {a.status === 'disbursed' && (
-              <button onClick={() => transition(a.id, 'recover')}>Mark recovered</button>
+              <button onClick={() => transition(a.id, 'recover')}>{t.markRecovered}</button>
             )}
           </div>
         </div>
@@ -453,7 +470,7 @@ function DriverPanel() {
   );
 }
 
-function TrackPanel() {
+function TrackPanel({ t }: { t: Strings }) {
   const [shipmentId, setShipmentId] = useState('');
   const [events, setEvents] = useState<TrackingEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -471,14 +488,14 @@ function TrackPanel() {
 
   return (
     <section>
-      <h2>Live tracking · ቀጥታ ክትትል</h2>
+      <h2>{t.liveTracking}</h2>
       <ErrorBox error={error} />
       <form onSubmit={load} className="card row">
         <label>
-          Shipment ID
+          {t.shipmentId}
           <input value={shipmentId} onChange={(e) => setShipmentId(e.target.value)} />
         </label>
-        <button type="submit">Track</button>
+        <button type="submit">{t.trackBtn}</button>
       </form>
       {events && (
         <ul className="timeline">
@@ -496,18 +513,14 @@ function TrackPanel() {
   );
 }
 
-function AgentPanel() {
+function AgentPanel({ t, lang }: { t: Strings; lang: Lang }) {
   const [messages, setMessages] = useState<
     Array<{ role: 'user' | 'assistant'; content: string }>
-  >([
-    {
-      role: 'assistant',
-      content:
-        'ሰላም! I am the Domestic AI Agent. Try: "Post 20 tons of coffee from Jimma to Addis Ababa for 40000 birr"',
-    },
-  ]);
+  >([{ role: 'assistant', content: t.greeting }]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const voice = useVoiceInput(lang, (text) => setInput((current) => (current ? `${current} ${text}` : text)));
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
@@ -531,7 +544,7 @@ function AgentPanel() {
 
   return (
     <section>
-      <h2>Domestic AI Agent</h2>
+      <h2>{t.agentHeading}</h2>
       <div className="chat card">
         {messages.map((m, i) => (
           <div key={i} className={`msg ${m.role}`}>
@@ -543,13 +556,25 @@ function AgentPanel() {
       <form onSubmit={send} className="row">
         <input
           value={input}
-          placeholder="Post a load, find trucks, request a fuel advance…"
+          placeholder={t.agentPlaceholder}
           onChange={(e) => setInput(e.target.value)}
         />
+        {voice.supported && (
+          <button
+            type="button"
+            className={voice.listening ? 'mic listening' : 'mic'}
+            title={voice.listening ? t.listening : t.mic}
+            aria-label={voice.listening ? t.listening : t.mic}
+            onClick={() => (voice.listening ? voice.stop() : voice.start())}
+          >
+            {voice.listening ? '◉' : '🎤'}
+          </button>
+        )}
         <button type="submit" disabled={busy}>
-          Send
+          {t.send}
         </button>
       </form>
+      {voice.error === 'unsupported' && <p className="muted">{t.voiceUnsupported}</p>}
     </section>
   );
 }
