@@ -183,6 +183,27 @@ describe('marketplace api', async () => {
     });
     expect(missingPod.statusCode).toBe(422);
 
+    const rateRes = await app.inject({
+      method: 'POST',
+      url: `/shipments/${shipment.id}/rating`,
+      payload: { shipperId: 'shipper-1', stars: 5, comment: 'On time, cargo intact' },
+    });
+    expect(rateRes.statusCode).toBe(201);
+    expect(rateRes.json()).toMatchObject({ stars: 5, operatorId: operator.id });
+
+    const doubleRate = await app.inject({
+      method: 'POST',
+      url: `/shipments/${shipment.id}/rating`,
+      payload: { shipperId: 'shipper-1', stars: 4 },
+    });
+    expect(doubleRate.statusCode).toBe(409);
+
+    const ratingRes = await app.inject({
+      method: 'GET',
+      url: `/operators/${operator.id}/rating`,
+    });
+    expect(ratingRes.json()).toEqual({ average: 5, count: 1 });
+
     const invoiceRes = await app.inject({
       method: 'POST',
       url: '/invoices',

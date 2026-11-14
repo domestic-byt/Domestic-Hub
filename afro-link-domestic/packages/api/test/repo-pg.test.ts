@@ -12,7 +12,7 @@ describe.skipIf(!process.env.DATABASE_URL)('pg repo', () => {
     repo = await PgRepo.connect(process.env.DATABASE_URL!);
     const cleaner = new Pool({ connectionString: process.env.DATABASE_URL });
     await cleaner.query(
-      'TRUNCATE operators, loads, shipments, tracking_events, fuel_advances, invoices, webhooks',
+      'TRUNCATE operators, loads, shipments, tracking_events, fuel_advances, invoices, webhooks, ratings',
     );
     await cleaner.end();
   });
@@ -178,6 +178,24 @@ describe.skipIf(!process.env.DATABASE_URL)('pg repo', () => {
       payoutReference: 'TB-SIM-TEST',
     });
     expect(await repo.activeAdvancesFor(operatorId)).toEqual([]);
+  });
+
+  it('stores one rating per shipment and aggregates per operator', async () => {
+    const rating = {
+      id: `rat-${crypto.randomUUID()}`,
+      shipmentId: `shp-${crypto.randomUUID()}`,
+      operatorId: `op-${crypto.randomUUID()}`,
+      shipperId: 'shipper-pg-ratings',
+      stars: 4,
+      comment: 'On time',
+      createdAt: '2025-01-12T19:00:00.000Z',
+    };
+    await repo.saveRating(rating);
+    expect(await repo.ratingByShipment(rating.shipmentId)).toEqual(rating);
+    expect((await repo.ratingsForOperator(rating.operatorId)).map((r) => r.id)).toEqual([
+      rating.id,
+    ]);
+    expect(await repo.ratingByShipment('missing')).toBeUndefined();
   });
 
   it('stores VAT invoices', async () => {

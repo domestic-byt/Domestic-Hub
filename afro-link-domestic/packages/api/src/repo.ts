@@ -4,6 +4,7 @@ import {
   Shipment,
   TrackingEvent,
   TruckOperator,
+  Rating,
   VatInvoice,
   Webhook,
 } from '@afro-link/shared';
@@ -34,6 +35,9 @@ export interface MarketplaceRepo {
   saveWebhook(webhook: Webhook): Promise<void>;
   listWebhooks(): Promise<Webhook[]>;
   deleteWebhook(id: string): Promise<void>;
+  saveRating(rating: Rating): Promise<void>;
+  ratingByShipment(shipmentId: string): Promise<Rating | undefined>;
+  ratingsForOperator(operatorId: string): Promise<Rating[]>;
 }
 
 export class InMemoryRepo implements MarketplaceRepo {
@@ -137,6 +141,7 @@ export class InMemoryRepo implements MarketplaceRepo {
   }
 
   webhooks = new Map<string, Webhook>();
+  ratings = new Map<string, Rating>();
 
   async saveWebhook(webhook: Webhook): Promise<void> {
     this.webhooks.set(webhook.id, webhook);
@@ -144,6 +149,18 @@ export class InMemoryRepo implements MarketplaceRepo {
 
   async listWebhooks(): Promise<Webhook[]> {
     return [...this.webhooks.values()];
+  }
+
+  async saveRating(rating: Rating): Promise<void> {
+    this.ratings.set(rating.shipmentId, rating);
+  }
+
+  async ratingByShipment(shipmentId: string): Promise<Rating | undefined> {
+    return this.ratings.get(shipmentId);
+  }
+
+  async ratingsForOperator(operatorId: string): Promise<Rating[]> {
+    return [...this.ratings.values()].filter((r) => r.operatorId === operatorId);
   }
 
   async deleteWebhook(id: string): Promise<void> {

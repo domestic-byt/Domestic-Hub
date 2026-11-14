@@ -82,6 +82,39 @@ export async function shipmentRoutes(app: FastifyInstance, store: MarketplaceSto
     );
   });
 
+  app.post('/shipments/:id/rating', async (request, reply) => {
+    if (guard(request, reply, 'shipper', 'admin')) return;
+    const { id } = request.params as { id: string };
+    const body = request.body as
+      | { stars?: unknown; comment?: unknown; shipperId?: unknown }
+      | null;
+    if (typeof body?.stars !== 'number') {
+      return reply.code(422).send({ errors: ['stars must be a number from 1 to 5.'] });
+    }
+    const comment = typeof body?.comment === 'string' ? body.comment : undefined;
+    const actor = request.actor;
+    const shipperId =
+      actor?.role === 'shipper'
+        ? actor.subject
+        : typeof body?.shipperId === 'string' && body.shipperId !== ''
+          ? body.shipperId
+          : undefined;
+    if (!shipperId) {
+      return reply.code(400).send({ error: 'shipperId is required.' });
+    }
+    return run(
+      reply,
+      () =>
+        store.rateShipment({
+          shipmentId: id,
+          shipperId,
+          stars: body!.stars as number,
+          comment,
+        }),
+      201,
+    );
+  });
+
   app.get('/shipments/:id/tracking', async (request, reply) => {
     const { id } = request.params as { id: string };
     return run(reply, () => store.getTracking(id));

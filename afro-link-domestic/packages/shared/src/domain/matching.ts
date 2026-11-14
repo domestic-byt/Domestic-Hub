@@ -8,6 +8,8 @@ export interface OperatorMatch {
   score: number;
   deadheadKm: number;
   reasons: string[];
+  ratingAvg?: number;
+  ratingCount?: number;
 }
 
 const DEADHEAD_PENALTY_PER_KM = 0.5;

@@ -114,6 +114,9 @@ describe('agent LLM fallback', () => {
     async capturePod(): Promise<never> {
       throw new Error('not used');
     }
+    async rateShipment(): Promise<never> {
+      throw new Error('not used');
+    }
     async getEarnings(): Promise<never> {
       throw new Error('not used');
     }

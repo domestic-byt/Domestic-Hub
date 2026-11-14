@@ -17,6 +17,7 @@ import {
   rankReturnLoads,
   suggestPrice,
   validateAdvanceRequest,
+  Rating,
 } from '@afro-link/shared';
 import { DomesticAgent } from '../src/agent';
 import { detectIntent } from '../src/intent';
@@ -183,6 +184,35 @@ class FakeStore implements AgentStore {
     return updated;
   }
 
+  ratings = new Map<string, Rating>();
+
+  async rateShipment(input: {
+    shipmentId: string;
+    shipperId: string;
+    stars: number;
+    comment?: string;
+  }): Promise<Rating> {
+    const shipment = this.shipments.get(input.shipmentId);
+    if (!shipment) throw new DomainError('not_found', 'Shipment not found.');
+    if (shipment.status !== 'delivered') {
+      throw new DomainError('conflict', 'Ratings can only be given for delivered shipments.');
+    }
+    if (this.ratings.has(input.shipmentId)) {
+      throw new DomainError('conflict', 'This shipment has already been rated.');
+    }
+    const rating: Rating = {
+      id: crypto.randomUUID(),
+      shipmentId: input.shipmentId,
+      operatorId: shipment.operatorId,
+      shipperId: input.shipperId,
+      stars: input.stars,
+      ...(input.comment ? { comment: input.comment } : {}),
+      createdAt: new Date().toISOString(),
+    };
+    this.ratings.set(input.shipmentId, rating);
+    return rating;
+  }
+
   async cancelLoad(loadId: string): Promise<Load> {
     const load = this.loads.get(loadId);
     if (!load) throw new DomainError('not_found', 'Load not found.');
@@ -309,6 +339,7 @@ describe('detectIntent', () => {
     );
     expect(detectIntent('ዋጋው ስንት ነው?')).toBe('price_suggestion');
     expect(detectIntent('proof of delivery received by Abebe')).toBe('capture_pod');
+    expect(detectIntent('rate 5 stars')).toBe('rate_shipment');
     expect(detectIntent('help')).toBe('help');
     expect(detectIntent('xyzzy')).toBe('unknown');
   });
@@ -571,6 +602,27 @@ describe('DomesticAgent', () => {
     const result = await agent.handle('confirm the delivery please');
     expect(result.intent).toBe('capture_pod');
     expect(result.reply).toContain('receiver');
+  });
+
+  it('rates a delivered shipment and prompts for missing stars', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+    await agent.handle('Post 20 tons from Jimma to Addis Ababa for 40000 birr');
+    await agent.handle('assign the top match');
+    const shipmentId = (await store.findLatestShipment())!.id;
+
+    const noStars = await agent.handle('rate the delivery');
+    expect(noStars.intent).toBe('rate_shipment');
+    expect(noStars.reply).toContain('stars');
+
+    store.deliver(shipmentId);
+    const result = await agent.handle('rate 5 stars');
+    expect(result.intent).toBe('rate_shipment');
+    expect(result.reply).toContain('5 star');
+    expect(store.ratings.get(shipmentId)!.stars).toBe(5);
+
+    const again = await agent.handle('rate 4 stars');
+    expect(again.reply).toMatch(/\u26a0\ufe0f.*already been rated/);
   });
 
   it('reports operator earnings after delivery', async () => {

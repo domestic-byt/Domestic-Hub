@@ -9,6 +9,7 @@ import type {
   OperatorEarnings,
   OperatorMatch,
   PriceSuggestion,
+  Rating,
   ReturnLoadMatch,
   Shipment,
   TrackingEvent,
@@ -145,6 +146,8 @@ export const api = {
   listAdvances: () => request<FuelAdvance[]>('/advances', 'GET'),
   retryPayout: (advanceId: string) =>
     request<FuelAdvance>(`/advances/${advanceId}/retry-payout`, 'POST'),
+  rateShipment: (shipmentId: string, stars: number, comment?: string, shipperId = 'shipper-1') =>
+    request<Rating>(`/shipments/${shipmentId}/rating`, 'POST', { shipperId, stars, comment }),
 
   createInvoice: (shipmentId: string, shipperTin: string, operatorTin: string) =>
     request<VatInvoice>('/invoices', 'POST', { shipmentId, shipperTin, operatorTin }),

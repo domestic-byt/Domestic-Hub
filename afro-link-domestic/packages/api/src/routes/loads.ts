@@ -55,6 +55,12 @@ interface LoadBody {
 export async function operatorRoutes(app: FastifyInstance, store: MarketplaceStore) {
   app.get('/operators', async () => store.listOperators());
 
+  app.get('/operators/:id/rating', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const rating = await store.operatorRating(id);
+    return rating ?? { average: null, count: 0 };
+  });
+
   app.get('/operators/:id/earnings', async (request, reply) => {
     if (guard(request, reply, 'operator', 'admin')) return;
     const { id } = request.params as { id: string };

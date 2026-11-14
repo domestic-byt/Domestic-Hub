@@ -74,6 +74,16 @@ export interface FuelAdvance {
   lastPayoutError?: string;
 }
 
+export interface Rating {
+  id: string;
+  shipmentId: string;
+  operatorId: string;
+  shipperId: string;
+  stars: number;
+  comment?: string;
+  createdAt: string;
+}
+
 export interface VatInvoice {
   id: string;
   shipmentId: string;

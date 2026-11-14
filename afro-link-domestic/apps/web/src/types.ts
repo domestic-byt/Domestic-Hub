@@ -31,6 +31,18 @@ export interface OperatorMatch {
   score: number;
   deadheadKm: number;
   reasons: string[];
+  ratingAvg?: number;
+  ratingCount?: number;
+}
+
+export interface Rating {
+  id: string;
+  shipmentId: string;
+  operatorId: string;
+  shipperId: string;
+  stars: number;
+  comment?: string;
+  createdAt: string;
 }
 
 export interface ReturnLoadMatch {

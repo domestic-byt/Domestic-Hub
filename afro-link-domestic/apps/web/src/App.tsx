@@ -188,6 +188,8 @@ function ShipperPanel({ t }: { t: Strings }) {
   const [error, setError] = useState<string | null>(null);
   const [matches, setMatches] = useState<Record<string, OperatorMatch[]>>({});
   const [priceHint, setPriceHint] = useState<PriceSuggestion | null>(null);
+  const [rateForm, setRateForm] = useState({ shipmentId: '', stars: 5, comment: '' });
+  const [rateSaved, setRateSaved] = useState(false);
   const [form, setForm] = useState({
     shipperId: 'shipper-1',
     origin: 'Jimma',
@@ -271,6 +273,23 @@ function ShipperPanel({ t }: { t: Strings }) {
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function rate(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setRateSaved(false);
+    try {
+      await api.rateShipment(
+        rateForm.shipmentId.trim(),
+        Number(rateForm.stars),
+        rateForm.comment || undefined,
+      );
+      setRateSaved(true);
+      setRateForm({ shipmentId: '', stars: 5, comment: '' });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -378,6 +397,7 @@ function ShipperPanel({ t }: { t: Strings }) {
               {matches[load.id]!.map((m) => (
                 <li key={m.operatorId}>
                   <strong>{m.operatorName}</strong> — score {m.score}, {m.deadheadKm} km deadhead
+                  {m.ratingCount ? ` ⭐ ${m.ratingAvg} (${m.ratingCount})` : ''}
                   {m.reasons.length > 0 && <em> ({m.reasons.join('; ')})</em>}
                 </li>
               ))}
@@ -385,6 +405,41 @@ function ShipperPanel({ t }: { t: Strings }) {
           )}
         </div>
       ))}
+
+      <h2>{t.ratingHeading}</h2>
+      <form onSubmit={rate} className="card row">
+        <label>
+          {t.podShipment}
+          <input
+            value={rateForm.shipmentId}
+            onChange={(e) => setRateForm({ ...rateForm, shipmentId: e.target.value })}
+          />
+        </label>
+        <label>
+          {t.ratingStars}
+          <select
+            value={rateForm.stars}
+            onChange={(e) => setRateForm({ ...rateForm, stars: Number(e.target.value) })}
+          >
+            {[5, 4, 3, 2, 1].map((n) => (
+              <option key={n} value={n}>
+                {n} ⭐
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {t.ratingComment}
+          <input
+            value={rateForm.comment}
+            onChange={(e) => setRateForm({ ...rateForm, comment: e.target.value })}
+          />
+        </label>
+        <button type="submit" disabled={!rateForm.shipmentId}>
+          {t.ratingSubmit}
+        </button>
+      </form>
+      {rateSaved && <p className="auth-ok">{t.ratingSaved}</p>}
     </section>
   );
 }

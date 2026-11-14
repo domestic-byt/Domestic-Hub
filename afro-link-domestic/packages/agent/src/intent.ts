@@ -17,6 +17,10 @@ const PATTERNS: Array<[AgentIntent, RegExp]> = [
     'capture_pod',
     /proof\s*of\s*delivery|\bpod\b|receiver|confirm\s+(?:the\s+)?delivery|ማረጋገጫ|ምርግጋዕ|mirkaneessa|ragaa|caddeeyn|uthibitisho|thibitisha/i,
   ],
+  [
+    'rate_shipment',
+    /\brate\b|\brated\b|rating|\bstars?\b|⭐|ደረጃ|ኮከብ|kabaja|qiimeyn|nyota|kadirio|piga/i,
+  ],
   ['cancel_load', /cancel|call\s*off|ሰርዝ|ተሰርዝ|haqi|jooji|ስረዝ|ghairi/i],
   [
     'earnings',

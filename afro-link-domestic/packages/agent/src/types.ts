@@ -6,6 +6,7 @@ import {
   MarketplaceMetrics,
   OperatorEarnings,
   OperatorMatch,
+  Rating,
   PriceSuggestion,
   ReturnLoadMatch,
   Shipment,
@@ -52,6 +53,12 @@ export interface AgentStore {
     receiverName: string,
     note?: string,
   ): Promise<Shipment>;
+  rateShipment(input: {
+    shipmentId: string;
+    shipperId: string;
+    stars: number;
+    comment?: string;
+  }): Promise<Rating>;
   getEarnings(operatorId: string): Promise<OperatorEarnings>;
   suggestLanePrice(input: {
     origin: City;
@@ -77,6 +84,7 @@ export type AgentIntent =
   | 'get_metrics'
   | 'cancel_load'
   | 'capture_pod'
+  | 'rate_shipment'
   | 'earnings'
   | 'price_suggestion'
   | 'help'

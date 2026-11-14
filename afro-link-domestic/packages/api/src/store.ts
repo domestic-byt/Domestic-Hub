@@ -25,6 +25,9 @@ import {
   validateAdvanceRequest,
   ProofOfDelivery,
   kycIssues,
+  averageRating,
+  Rating,
+  validateRatingStars,
 } from '@afro-link/shared';
 import type {
   AgentStore,
@@ -77,7 +80,53 @@ export class MarketplaceStore implements AgentStore {
 
   async rankMatches(loadId: string): Promise<OperatorMatch[]> {
     const load = await this.getLoad(loadId);
-    return rankOperatorsForLoad(load, await this.repo.listOperators());
+    const matches = rankOperatorsForLoad(load, await this.repo.listOperators());
+    return Promise.all(
+      matches.map(async (m) => {
+        const rating = averageRating(await this.repo.ratingsForOperator(m.operatorId));
+        return rating ? { ...m, ratingAvg: rating.average, ratingCount: rating.count } : m;
+      }),
+    );
+  }
+
+  async rateShipment(input: {
+    shipmentId: string;
+    shipperId: string;
+    stars: number;
+    comment?: string;
+  }): Promise<Rating> {
+    const shipment = await this.getShipment(input.shipmentId);
+    if (shipment.status !== 'delivered') {
+      throw new DomainError('conflict', 'Ratings can only be given for delivered shipments.');
+    }
+    const load = await this.getLoad(shipment.loadId);
+    if (load.shipperId !== input.shipperId) {
+      throw new DomainError('conflict', 'You can only rate your own shipments.');
+    }
+    if (await this.repo.ratingByShipment(shipment.id)) {
+      throw new DomainError('conflict', 'This shipment has already been rated.');
+    }
+    const errors = validateRatingStars(input.stars);
+    if (errors.length > 0) {
+      throw new DomainError('validation', errors[0]!, errors);
+    }
+    const rating: Rating = {
+      id: crypto.randomUUID(),
+      shipmentId: shipment.id,
+      operatorId: shipment.operatorId,
+      shipperId: input.shipperId,
+      stars: input.stars,
+      ...(input.comment && input.comment.trim() !== '' ? { comment: input.comment.trim() } : {}),
+      createdAt: new Date().toISOString(),
+    };
+    await this.repo.saveRating(rating);
+    return rating;
+  }
+
+  async operatorRating(
+    operatorId: string,
+  ): Promise<{ average: number; count: number } | undefined> {
+    return averageRating(await this.repo.ratingsForOperator(operatorId));
   }
 
   async rankReturnLoads(operatorId: string): Promise<ReturnLoadMatch[]> {

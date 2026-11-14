@@ -7,6 +7,7 @@ import {
   Load,
   LoadStatus,
   ProofOfDelivery,
+  Rating,
   Shipment,
   ShipmentStatus,
   TrackingEvent,
@@ -85,6 +86,16 @@ CREATE TABLE IF NOT EXISTS invoices (
   vat_etb DOUBLE PRECISION NOT NULL,
   total_etb DOUBLE PRECISION NOT NULL,
   issued_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE IF NOT EXISTS ratings (
+  seq BIGSERIAL,
+  id TEXT PRIMARY KEY,
+  shipment_id TEXT NOT NULL UNIQUE,
+  operator_id TEXT NOT NULL,
+  shipper_id TEXT NOT NULL,
+  stars INTEGER NOT NULL,
+  comment TEXT,
+  created_at TIMESTAMPTZ NOT NULL
 );
 CREATE TABLE IF NOT EXISTS webhooks (
   id TEXT PRIMARY KEY,
@@ -185,6 +196,18 @@ function rowToAdvance(row: Row): FuelAdvance {
     payoutReference: row.payout_reference === null ? undefined : str(row.payout_reference),
     payoutAttempts: row.payout_attempts === null ? undefined : num(row.payout_attempts),
     lastPayoutError: row.last_payout_error === null ? undefined : str(row.last_payout_error),
+  };
+}
+
+function rowToRating(row: Row): Rating {
+  return {
+    id: str(row.id),
+    shipmentId: str(row.shipment_id),
+    operatorId: str(row.operator_id),
+    shipperId: str(row.shipper_id),
+    stars: num(row.stars),
+    comment: row.comment === null ? undefined : str(row.comment),
+    createdAt: iso(row.created_at),
   };
 }
 
@@ -452,6 +475,40 @@ export class PgRepo implements MarketplaceRepo {
   async listWebhooks(): Promise<Webhook[]> {
     const result = await this.pool.query('SELECT * FROM webhooks ORDER BY created_at');
     return result.rows.map(rowToWebhook);
+  }
+
+  async saveRating(rating: Rating): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO ratings (id, shipment_id, operator_id, shipper_id, stars, comment, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (shipment_id) DO UPDATE SET
+         operator_id = EXCLUDED.operator_id, shipper_id = EXCLUDED.shipper_id,
+         stars = EXCLUDED.stars, comment = EXCLUDED.comment, created_at = EXCLUDED.created_at`,
+      [
+        rating.id,
+        rating.shipmentId,
+        rating.operatorId,
+        rating.shipperId,
+        rating.stars,
+        rating.comment ?? null,
+        rating.createdAt,
+      ],
+    );
+  }
+
+  async ratingByShipment(shipmentId: string): Promise<Rating | undefined> {
+    const result = await this.pool.query('SELECT * FROM ratings WHERE shipment_id = $1', [
+      shipmentId,
+    ]);
+    return result.rows[0] ? rowToRating(result.rows[0]) : undefined;
+  }
+
+  async ratingsForOperator(operatorId: string): Promise<Rating[]> {
+    const result = await this.pool.query(
+      'SELECT * FROM ratings WHERE operator_id = $1 ORDER BY seq',
+      [operatorId],
+    );
+    return result.rows.map(rowToRating);
   }
 
   async deleteWebhook(id: string): Promise<void> {

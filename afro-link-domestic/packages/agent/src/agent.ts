@@ -23,6 +23,7 @@ const HELP_TEXT = [
   '- Earnings: "how much have I earned?"',
   '- Pricing: "what price for 20 tons from Jimma to Addis Ababa?"',
   '- Proof of delivery: "confirm delivery received by <name>"',
+  '- Rate a delivery: "rate 5 stars"',
 ].join('\n');
 
 const UNKNOWN_TEXT = "I didn't catch that. " + HELP_TEXT;
@@ -82,6 +83,8 @@ export class DomesticAgent {
           return await this.cancelLoad(message, memory);
         case 'capture_pod':
           return await this.capturePod(message, memory);
+        case 'rate_shipment':
+          return await this.rateShipment(message, ctx, memory);
         case 'earnings':
           return await this.reportEarnings(message, ctx, memory);
         case 'price_suggestion':
@@ -348,6 +351,40 @@ export class DomesticAgent {
     return {
       reply: `Proof of delivery recorded for shipment ${shipment.id} \u2014 received by ${receiverName}.`,
       data: shipment,
+    };
+  }
+
+  private async rateShipment(
+    message: string,
+    ctx: AgentContext,
+    memory: AgentMemoryState,
+  ) {
+    const slots = extractSlots(message);
+    const shipmentId =
+      slots.ids[0] ?? memory.lastShipmentId ?? (await this.store.findLatestShipment())?.id;
+    if (!shipmentId) {
+      return {
+        reply:
+          'Which shipment? Share the shipment id, or track one first \u2014 e.g. "where is my shipment <id>".',
+      };
+    }
+    const starsMatch = /(?:^|\s)([1-5])\s*(?:stars?|\u2b50|\u12ae\u12a8\u1265|nyota)/i.exec(message);
+    const stars = starsMatch ? Number(starsMatch[1]) : undefined;
+    if (!stars) {
+      return {
+        reply:
+          'How many stars (1\u20135)? Include them \u2014 e.g. "rate 5 stars for <shipment id>".',
+      };
+    }
+    const rating = await this.store.rateShipment({
+      shipmentId,
+      shipperId: ctx.shipperId ?? 'guest',
+      stars,
+    });
+    memory.lastShipmentId = rating.shipmentId;
+    return {
+      reply: `Rated ${rating.stars} star(s) for shipment ${rating.shipmentId}. Thank you \u2014 ratings help shippers pick reliable trucks.`,
+      data: rating,
     };
   }
 
