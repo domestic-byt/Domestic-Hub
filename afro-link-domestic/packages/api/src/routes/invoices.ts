@@ -1,11 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { MarketplaceStore } from '../store';
+import { guard } from '../auth';
 import { run } from './loads';
 
 export async function invoiceRoutes(app: FastifyInstance, store: MarketplaceStore) {
   app.get('/invoices', async () => store.listInvoices());
 
   app.post('/invoices', async (request, reply) => {
+    if (guard(request, reply, 'shipper', 'admin')) return;
     const body = request.body as {
       shipmentId?: string;
       shipperTin?: string;

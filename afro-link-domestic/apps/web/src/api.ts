@@ -11,6 +11,25 @@ import type {
 } from './types';
 
 const API_BASE: string = import.meta.env.VITE_API_BASE ?? '/api';
+const TOKEN_KEY = 'afrolink.token';
+
+let authToken: string | null =
+  typeof localStorage !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
+
+export function setAuthToken(token: string | null): void {
+  authToken = token && token.trim() !== '' ? token.trim() : null;
+  if (typeof localStorage !== 'undefined') {
+    if (authToken) {
+      localStorage.setItem(TOKEN_KEY, authToken);
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+    }
+  }
+}
+
+export function getAuthToken(): string | null {
+  return authToken;
+}
 
 export function apiUrl(path: string): string {
   return `${API_BASE}${path}`;
@@ -26,9 +45,12 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, method: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers['content-type'] = 'application/json';
+  if (authToken) headers.authorization = `Bearer ${authToken}`;
   const res = await fetch(apiUrl(path), {
     method,
-    headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const payload = await res.json().catch(() => null);

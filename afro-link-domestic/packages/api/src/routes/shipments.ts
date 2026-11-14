@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { City, TrackingEventKind } from '@afro-link/shared';
 import { MarketplaceStore } from '../store';
+import { guard } from '../auth';
 import { run } from './loads';
 
 const EVENT_KINDS: TrackingEventKind[] = [
@@ -30,6 +31,7 @@ export async function shipmentRoutes(app: FastifyInstance, store: MarketplaceSto
   app.get('/shipments', async () => store.listShipments());
 
   app.post('/shipments', async (request, reply) => {
+    if (guard(request, reply, 'shipper', 'admin')) return;
     const body = request.body as { loadId?: string; operatorId?: string } | null;
     if (!body || !body.loadId || !body.operatorId) {
       return reply.code(400).send({ error: 'loadId and operatorId are required.' });
@@ -38,6 +40,7 @@ export async function shipmentRoutes(app: FastifyInstance, store: MarketplaceSto
   });
 
   app.post('/shipments/:id/events', async (request, reply) => {
+    if (guard(request, reply, 'operator', 'admin')) return;
     const { id } = request.params as { id: string };
     const body = request.body as {
       kind?: unknown;

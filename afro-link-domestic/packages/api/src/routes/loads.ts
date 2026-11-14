@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyReply } from 'fastify';
 import { City, DomainError } from '@afro-link/shared';
 import { MarketplaceStore } from '../store';
+import { guard } from '../auth';
 
 function isCity(value: unknown): value is City {
   const v = value as City;
@@ -53,6 +54,7 @@ export async function operatorRoutes(app: FastifyInstance, store: MarketplaceSto
   app.get('/operators', async () => store.listOperators());
 
   app.post('/operators', async (request, reply) => {
+    if (guard(request, reply, 'operator', 'admin')) return;
     const body = request.body as Partial<TruckOperatorBody> | null;
     if (!body || !body.name || !body.phone || !body.truckPlate) {
       return reply.code(400).send({ error: 'name, phone and truckPlate are required.' });
@@ -84,6 +86,7 @@ export async function loadRoutes(app: FastifyInstance, store: MarketplaceStore) 
   app.get('/loads', async () => store.listLoads());
 
   app.post('/loads', async (request, reply) => {
+    if (guard(request, reply, 'shipper', 'admin')) return;
     const body = request.body as Partial<LoadBody> | null;
     if (!body || !body.shipperId) {
       return reply.code(400).send({ error: 'shipperId is required.' });
@@ -97,11 +100,12 @@ export async function loadRoutes(app: FastifyInstance, store: MarketplaceStore) 
     if (typeof body.offeredPriceEtb !== 'number' || body.offeredPriceEtb <= 0) {
       return reply.code(400).send({ error: 'offeredPriceEtb must be a positive number.' });
     }
+    const actor = request.actor;
     return run(
       reply,
       () =>
         store.createLoad({
-          shipperId: body.shipperId!,
+          shipperId: actor?.role === 'shipper' ? actor.subject : body.shipperId!,
           origin: body.origin!,
           destination: body.destination!,
           weightTons: body.weightTons!,

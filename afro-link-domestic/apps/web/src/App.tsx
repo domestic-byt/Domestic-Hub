@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api } from './api';
+import { api, getAuthToken, setAuthToken } from './api';
 import type { Load, OperatorMatch, TrackingEvent } from './types';
 
 const CITIES = [
@@ -43,6 +43,12 @@ type Tab = 'shipper' | 'driver' | 'track' | 'agent';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('shipper');
+  const [token, setToken] = useState(getAuthToken() ?? '');
+
+  const applyToken = (value: string) => {
+    setToken(value);
+    setAuthToken(value);
+  };
 
   return (
     <div className="app">
@@ -53,6 +59,15 @@ export default function App() {
         <p className="tagline">
           Ethiopia's AI-powered freight marketplace · part of DomesticHub
         </p>
+        <div className="auth-row">
+          <input
+            type="password"
+            value={token}
+            placeholder="DomesticHub SSO token (optional)"
+            onChange={(e) => applyToken(e.target.value)}
+          />
+          {token ? <span className="auth-ok">signed in</span> : <span className="auth-hint">guest mode</span>}
+        </div>
         <nav>
           {(
             [

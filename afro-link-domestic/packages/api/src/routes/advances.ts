@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { AdvanceAction, AdvanceChannel } from '@afro-link/shared';
 import { MarketplaceStore } from '../store';
+import { guard } from '../auth';
 import { run } from './loads';
 
 const CHANNELS: AdvanceChannel[] = ['telebirr', 'cbe_birr'];
@@ -10,6 +11,7 @@ export async function advanceRoutes(app: FastifyInstance, store: MarketplaceStor
   app.get('/advances', async () => store.listAdvances());
 
   app.post('/advances', async (request, reply) => {
+    if (guard(request, reply, 'operator', 'admin')) return;
     const body = request.body as {
       operatorId?: string;
       shipmentId?: string;
@@ -38,6 +40,7 @@ export async function advanceRoutes(app: FastifyInstance, store: MarketplaceStor
   });
 
   app.post('/advances/:id/transition', async (request, reply) => {
+    if (guard(request, reply, 'admin')) return;
     const { id } = request.params as { id: string };
     const body = request.body as { action?: string } | null;
     if (!ACTIONS.includes(body?.action as AdvanceAction)) {

@@ -10,6 +10,7 @@ import { shipmentRoutes } from './routes/shipments';
 import { advanceRoutes } from './routes/advances';
 import { invoiceRoutes } from './routes/invoices';
 import { agentRoutes } from './routes/agent';
+import { AuthConfig, authenticate } from './auth';
 
 export const DEFAULT_ALLOWED_ORIGINS = [
   'https://afro-link.domestic.com.et',
@@ -41,10 +42,14 @@ export async function buildServer(options?: {
   payouts?: Record<AdvanceChannel, PayoutAdapter>;
   llm?: LlmAdapter;
   repo?: MarketplaceRepo;
+  auth?: AuthConfig;
 }): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
   const repo = await resolveRepo(options?.repo);
   const store = new MarketplaceStore(repo, options?.payouts);
+  const auth =
+    options?.auth ??
+    (process.env.AUTH_SECRET ? { secret: process.env.AUTH_SECRET } : undefined);
   const llm =
     options?.llm ??
     (process.env.MISTRAL_API_KEY
@@ -56,6 +61,12 @@ export async function buildServer(options?: {
   app.register(cors, {
     origin: (origin, cb) => cb(null, !origin || origins.includes(origin)),
   });
+
+  app.decorate('authSecret', auth?.secret);
+  app.decorateRequest('actor');
+  if (auth) {
+    app.addHook('preHandler', authenticate(auth));
+  }
 
   app.get('/health', async () => ({
     status: 'ok',

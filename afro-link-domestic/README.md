@@ -65,6 +65,22 @@ The API stores all marketplace state through the `MarketplaceRepo` interface:
 - **PostgreSQL** (`PgRepo`) — used automatically when `DATABASE_URL` is set, e.g. `postgres://user:pass@host:5432/db`. `PgRepo` creates its schema on startup (`CREATE TABLE IF NOT EXISTS` for operators, loads, shipments, tracking_events, fuel_advances, invoices), so no migration step is needed. `buildServer({ repo })` also accepts an explicit repo instance.
 - The Postgres path is exercised in CI against a `postgres:16` service container; locally the `repo-pg` tests skip when `DATABASE_URL` is absent.
 
+## Authentication (DomesticHub SSO)
+
+When `AUTH_SECRET` is set (or `buildServer({ auth: { secret } })` is passed), every write endpoint requires a Bearer token — an HS256 JWT with `sub` (the user id), `role` (`shipper` | `operator` | `admin`) and `exp`. Tokens issued by DomesticHub SSO are verified with the shared `AUTH_SECRET`; reads stay public so tracking links keep working.
+
+Role rules: loads/shipments/invoices → `shipper` or `admin`; operator registration, tracking events and advance requests → `operator` or `admin`; payout transitions → `admin` only. When a shipper posts a load or chats with the agent, the `shipperId` is taken from the token, not the body.
+
+Without `AUTH_SECRET` the API runs in open dev mode (no auth enforced).
+
+Dev token minting:
+
+```bash
+AUTH_SECRET=dev-secret npx tsx afro-link-domestic/scripts/mint-token.ts shipper shipper-77 Abebe
+```
+
+Paste the token into the web dashboard's SSO token field (stored in `localStorage`) to act as that role.
+
 ## Roadmap
 
 - `apps/web` — shipper dashboard and driver app (Amharic/English).
