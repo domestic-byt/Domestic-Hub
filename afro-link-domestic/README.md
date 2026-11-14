@@ -43,6 +43,8 @@ The web app reads `VITE_API_BASE` at build time (defaults to `/api`, proxied in 
 | GET/POST | `/invoices` | VAT invoices (15% Ethiopian VAT, TIN fields) |
 | POST | `/agent/chat` | Domestic AI Agent: conversational posting, matching, advances, tracking, invoicing (EN/AM) |
 | GET | `/metrics` | Marketplace KPIs: loads/shipments funnel, avg deadhead km, zero-deadhead share, disbursed advances by channel, VAT totals (admin-only when auth is enabled) |
+| POST | `/webhooks` | Register an outbound webhook (`{url, events?, secret?}`); receives signed shipment events |
+| GET/DELETE | `/webhooks` | List (admin, secrets redacted) / delete (admin) registered webhooks |
 
 ## Domain rules baked into `@afro-link/shared`
 
@@ -110,6 +112,10 @@ Fuel advances settle through the `PayoutAdapter` interface. `payoutAdaptersFromE
 - **CBE Birr live** — when `CBE_BIRR_CLIENT_ID` + `CBE_BIRR_CLIENT_SECRET` + `CBE_BIRR_BASE_URL` are set (base URL required because CBE exposes contract-specific endpoints per merchant agreement).
 
 Live gateways enforce a 15s timeout (`*_TIMEOUT_MS` to override), map HTTP/network failures to failed payouts (which blocks the advance transition and preserves its status), and surface the gateway's transaction reference as `TB-*` / `CBE-*`. Verify the exact endpoint paths and payload fields against the merchant contract with Ethio Telecom / CBE before production — they are isolated in `packages/api/src/payouts-live.ts`.
+
+## Webhooks
+
+Register an outbound webhook (`POST /webhooks` with `{url, events?, secret?}`) and Afro-Link Domestic pushes `shipment.assigned`, `shipment.picked_up` and `shipment.delivered` events as JSON with an `X-Afro-Link-Signature: sha256=<hmac>` header (HMAC-SHA256 of the raw body with your secret — verify before trusting the payload). Omit `events` to receive everything; a secret is generated for you when omitted. Delivery failures and slow endpoints (5 s timeout) never block marketplace operations.
 
 ## Web app
 

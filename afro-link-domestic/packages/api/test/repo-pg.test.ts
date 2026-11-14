@@ -12,7 +12,7 @@ describe.skipIf(!process.env.DATABASE_URL)('pg repo', () => {
     repo = await PgRepo.connect(process.env.DATABASE_URL!);
     const cleaner = new Pool({ connectionString: process.env.DATABASE_URL });
     await cleaner.query(
-      'TRUNCATE operators, loads, shipments, tracking_events, fuel_advances, invoices',
+      'TRUNCATE operators, loads, shipments, tracking_events, fuel_advances, invoices, webhooks',
     );
     await cleaner.end();
   });
@@ -159,5 +159,20 @@ describe.skipIf(!process.env.DATABASE_URL)('pg repo', () => {
     await repo.saveInvoice(invoice);
     expect(await repo.getInvoice(invoice.id)).toEqual(invoice);
     expect((await repo.listInvoices()).some((i) => i.id === invoice.id)).toBe(true);
+  });
+
+  it('stores webhooks with event filters', async () => {
+    const webhook = {
+      id: `wh-${crypto.randomUUID()}`,
+      url: 'https://hooks.example/pg',
+      secret: 'pg-secret',
+      events: ['shipment.delivered' as const],
+      ownerId: 'shipper-1',
+      createdAt: '2025-01-14T10:00:00.000Z',
+    };
+    await repo.saveWebhook(webhook);
+    expect((await repo.listWebhooks()).find((h) => h.id === webhook.id)).toEqual(webhook);
+    await repo.deleteWebhook(webhook.id);
+    expect((await repo.listWebhooks()).some((h) => h.id === webhook.id)).toBe(false);
   });
 });

@@ -29,6 +29,7 @@ import type {
 } from '@afro-link/agent';
 import type { MarketplaceRepo } from './repo';
 import { defaultPayoutAdapters } from './payouts';
+import { WebhookDispatcher } from './webhooks';
 
 const ZERO_DEADHEAD_KM = 25;
 
@@ -36,6 +37,7 @@ export class MarketplaceStore implements AgentStore {
   constructor(
     private readonly repo: MarketplaceRepo,
     private readonly payouts: Record<AdvanceChannel, PayoutAdapter> = defaultPayoutAdapters(),
+    private readonly webhooks?: WebhookDispatcher,
   ) {}
 
   async createOperator(input: {
@@ -107,6 +109,11 @@ export class MarketplaceStore implements AgentStore {
       location: load.origin,
       note: `Assigned to ${operator.name} (${operator.truckPlate}).`,
     });
+    void this.webhooks?.dispatch('shipment.assigned', {
+      shipment,
+      load,
+      operatorId: operator.id,
+    });
     return shipment;
   }
 
@@ -128,6 +135,7 @@ export class MarketplaceStore implements AgentStore {
 
     if (kind === 'picked_up') {
       await this.repo.saveShipment({ ...shipment, status: 'in_transit' });
+      void this.webhooks?.dispatch('shipment.picked_up', { shipment, event });
     }
     if (kind === 'delivered') {
       await this.repo.saveShipment({
@@ -148,6 +156,7 @@ export class MarketplaceStore implements AgentStore {
           lastDropOffCity: location ?? load?.destination,
         });
       }
+      void this.webhooks?.dispatch('shipment.delivered', { shipment, event, load });
     }
     return event;
   }

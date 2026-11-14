@@ -87,6 +87,17 @@ export interface MarketplaceMetrics {
   vat: { invoiceCount: number; totalVatEtb: number; totalWithVatEtb: number };
 }
 
+export type WebhookEvent = 'shipment.assigned' | 'shipment.picked_up' | 'shipment.delivered';
+
+export interface Webhook {
+  id: string;
+  url: string;
+  secret: string;
+  events: WebhookEvent[];
+  ownerId?: string;
+  createdAt: string;
+}
+
 export type TrackingEventKind =
   | 'assigned'
   | 'picked_up'

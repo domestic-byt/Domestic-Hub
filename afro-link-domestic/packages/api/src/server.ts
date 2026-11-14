@@ -12,6 +12,8 @@ import { advanceRoutes } from './routes/advances';
 import { invoiceRoutes } from './routes/invoices';
 import { agentRoutes } from './routes/agent';
 import { metricsRoutes } from './routes/metrics';
+import { webhookRoutes } from './routes/webhooks';
+import { WebhookDispatcher } from './webhooks';
 import { AuthConfig, authenticate } from './auth';
 
 export const DEFAULT_ALLOWED_ORIGINS = [
@@ -48,7 +50,12 @@ export async function buildServer(options?: {
 }): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
   const repo = await resolveRepo(options?.repo);
-  const store = new MarketplaceStore(repo, options?.payouts ?? payoutAdaptersFromEnv());
+  const webhooks = new WebhookDispatcher(repo);
+  const store = new MarketplaceStore(
+    repo,
+    options?.payouts ?? payoutAdaptersFromEnv(),
+    webhooks,
+  );
   const auth =
     options?.auth ??
     (process.env.AUTH_SECRET ? { secret: process.env.AUTH_SECRET } : undefined);
@@ -82,6 +89,7 @@ export async function buildServer(options?: {
   app.register(async (instance) => invoiceRoutes(instance, store));
   app.register(async (instance) => agentRoutes(instance, agent));
   app.register(async (instance) => metricsRoutes(instance, store));
+  app.register(async (instance) => webhookRoutes(instance, repo));
 
   app.addHook('onClose', async () => {
     await repo.close();

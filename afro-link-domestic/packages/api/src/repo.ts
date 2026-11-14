@@ -5,6 +5,7 @@ import {
   TrackingEvent,
   TruckOperator,
   VatInvoice,
+  Webhook,
 } from '@afro-link/shared';
 
 export interface MarketplaceRepo {
@@ -30,6 +31,9 @@ export interface MarketplaceRepo {
   saveInvoice(invoice: VatInvoice): Promise<void>;
   getInvoice(id: string): Promise<VatInvoice | undefined>;
   listInvoices(): Promise<VatInvoice[]>;
+  saveWebhook(webhook: Webhook): Promise<void>;
+  listWebhooks(): Promise<Webhook[]>;
+  deleteWebhook(id: string): Promise<void>;
 }
 
 export class InMemoryRepo implements MarketplaceRepo {
@@ -130,5 +134,19 @@ export class InMemoryRepo implements MarketplaceRepo {
 
   async listInvoices(): Promise<VatInvoice[]> {
     return [...this.invoices.values()];
+  }
+
+  webhooks = new Map<string, Webhook>();
+
+  async saveWebhook(webhook: Webhook): Promise<void> {
+    this.webhooks.set(webhook.id, webhook);
+  }
+
+  async listWebhooks(): Promise<Webhook[]> {
+    return [...this.webhooks.values()];
+  }
+
+  async deleteWebhook(id: string): Promise<void> {
+    this.webhooks.delete(id);
   }
 }

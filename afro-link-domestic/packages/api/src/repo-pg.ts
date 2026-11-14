@@ -12,6 +12,8 @@ import {
   TrackingEventKind,
   TruckOperator,
   VatInvoice,
+  Webhook,
+  WebhookEvent,
 } from '@afro-link/shared';
 import type { MarketplaceRepo } from './repo';
 
@@ -77,6 +79,14 @@ CREATE TABLE IF NOT EXISTS invoices (
   vat_etb DOUBLE PRECISION NOT NULL,
   total_etb DOUBLE PRECISION NOT NULL,
   issued_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE IF NOT EXISTS webhooks (
+  id TEXT PRIMARY KEY,
+  url TEXT NOT NULL,
+  secret TEXT NOT NULL,
+  events JSONB NOT NULL,
+  owner_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL
 );
 `;
 
@@ -171,6 +181,17 @@ function rowToInvoice(row: Row): VatInvoice {
     vatEtb: num(row.vat_etb),
     totalEtb: num(row.total_etb),
     issuedAt: iso(row.issued_at),
+  };
+}
+
+function rowToWebhook(row: Row): Webhook {
+  return {
+    id: str(row.id),
+    url: str(row.url),
+    secret: str(row.secret),
+    events: (row.events as WebhookEvent[]) ?? [],
+    ownerId: row.owner_id === null ? undefined : str(row.owner_id),
+    createdAt: iso(row.created_at),
   };
 }
 
@@ -384,5 +405,32 @@ export class PgRepo implements MarketplaceRepo {
   async listInvoices(): Promise<VatInvoice[]> {
     const result = await this.pool.query('SELECT * FROM invoices ORDER BY issued_at');
     return result.rows.map(rowToInvoice);
+  }
+
+  async saveWebhook(webhook: Webhook): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO webhooks (id, url, secret, events, owner_id, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (id) DO UPDATE SET
+         url = EXCLUDED.url, secret = EXCLUDED.secret, events = EXCLUDED.events,
+         owner_id = EXCLUDED.owner_id, created_at = EXCLUDED.created_at`,
+      [
+        webhook.id,
+        webhook.url,
+        webhook.secret,
+        JSON.stringify(webhook.events),
+        webhook.ownerId ?? null,
+        webhook.createdAt,
+      ],
+    );
+  }
+
+  async listWebhooks(): Promise<Webhook[]> {
+    const result = await this.pool.query('SELECT * FROM webhooks ORDER BY created_at');
+    return result.rows.map(rowToWebhook);
+  }
+
+  async deleteWebhook(id: string): Promise<void> {
+    await this.pool.query('DELETE FROM webhooks WHERE id = $1', [id]);
   }
 }
