@@ -37,11 +37,6 @@ header .am {
 }
 
 .lang-toggle {
-  display: flex;
-  gap: 0.25rem;
-}
-
-.lang-toggle button {
   background: var(--card);
   color: var(--text);
   border: 1px solid var(--border);
@@ -49,11 +44,6 @@ header .am {
   padding: 0.25rem 0.6rem;
   cursor: pointer;
   font-size: 0.85rem;
-}
-
-.lang-toggle button.active {
-  border-color: var(--accent);
-  color: var(--accent);
 }
 
 .tagline {

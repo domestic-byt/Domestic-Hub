@@ -124,7 +124,7 @@ Register an outbound webhook (`POST /webhooks` with `{url, events?, secret?}`) a
 
 ## Web app
 
-`apps/web` ships five panels in English and Amharic (አማርኛ) with voice input in the agent: Shipper, Driver (incl. return-trip suggestions and fuel advances), Tracking, AI Agent, and a Metrics dashboard (`/metrics`, admin SSO token required when auth is enabled) showing the loads funnel, average deadhead km, zero-deadhead share, disbursed advances by channel, and VAT totals.
+`apps/web` ships five panels in six languages — English, Amharic (አማርኛ), Oromiffa (Afaan Oromoo), Aff-Somali (Soomaali), Tigrinya (ትግርኛ) and Kiswahili — with a language picker (persisted per browser) and voice input in the agent using per-language locales (`am-ET`, `om-ET`, `so-ET`, `ti-ET`, `sw-KE`): Shipper, Driver (incl. return-trip suggestions and fuel advances), Tracking, AI Agent, and a Metrics dashboard (`/metrics`, admin SSO token required when auth is enabled) showing the loads funnel, average deadhead km, zero-deadhead share, disbursed advances by channel, and VAT totals.
 
 ## Roadmap
 

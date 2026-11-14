@@ -29,7 +29,16 @@ function recognitionCtor(): SpeechRecognitionCtor | undefined {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 }
 
-export function useVoiceInput(lang: 'en' | 'am', onTranscript: (text: string) => void) {
+const VOICE_LOCALES: Record<string, string> = {
+  en: 'en-US',
+  am: 'am-ET',
+  om: 'om-ET',
+  so: 'so-ET',
+  ti: 'ti-ET',
+  sw: 'sw-KE',
+};
+
+export function useVoiceInput(lang: string, onTranscript: (text: string) => void) {
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recRef = useRef<SpeechRecognitionLike | null>(null);
@@ -46,7 +55,7 @@ export function useVoiceInput(lang: 'en' | 'am', onTranscript: (text: string) =>
       return;
     }
     const rec = new Ctor();
-    rec.lang = lang === 'am' ? 'am-ET' : 'en-US';
+    rec.lang = VOICE_LOCALES[lang] ?? 'en-US';
     rec.continuous = false;
     rec.interimResults = false;
     rec.onresult = (event) => {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, getAuthToken, setAuthToken } from './api';
 import { flushOutbox, outboxCount } from './outbox';
-import { Lang, loadLang, saveLang, STRINGS, Strings } from './i18n';
+import { LANGUAGES, Lang, loadLang, saveLang, STRINGS, Strings } from './i18n';
 import { useVoiceInput } from './useVoiceInput';
 import type {
   Load,
@@ -99,14 +99,18 @@ export default function App() {
           <h1>
             Afro-Link Domestic <span className="am">አፍሮ-ሊንክ ዶሜስቲክ</span>
           </h1>
-          <div className="lang-toggle">
-            <button className={lang === 'en' ? 'active' : ''} onClick={() => applyLang('en')}>
-              EN
-            </button>
-            <button className={lang === 'am' ? 'active' : ''} onClick={() => applyLang('am')}>
-              አማ
-            </button>
-          </div>
+          <select
+            className="lang-toggle"
+            value={lang}
+            onChange={(e) => applyLang(e.target.value as Lang)}
+            aria-label="Language"
+          >
+            {LANGUAGES.map(({ code, label }) => (
+              <option key={code} value={code}>
+                {label}
+              </option>
+            ))}
+          </select>
         </div>
         <p className="tagline">{t.tagline}</p>
         <div className="auth-row">
