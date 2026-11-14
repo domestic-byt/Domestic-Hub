@@ -83,6 +83,16 @@ export interface VatInvoice {
   issuedAt: string;
 }
 
+export interface PriceSuggestion {
+  etbPerTonKm: number;
+  suggestedEtb: number;
+  lowEtb: number;
+  highEtb: number;
+  distanceKm: number;
+  sampleSize: number;
+  basis: 'lane' | 'network';
+}
+
 export interface OperatorEarnings {
   operatorId: string;
   operatorName: string;

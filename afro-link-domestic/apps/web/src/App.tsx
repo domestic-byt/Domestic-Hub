@@ -8,6 +8,7 @@ import type {
   MarketplaceMetrics,
   OperatorEarnings,
   OperatorMatch,
+  PriceSuggestion,
   ReturnLoadMatch,
   TrackingEvent,
 } from './types';
@@ -159,6 +160,7 @@ function ShipperPanel({ t }: { t: Strings }) {
   const [loads, setLoads] = useState<Load[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [matches, setMatches] = useState<Record<string, OperatorMatch[]>>({});
+  const [priceHint, setPriceHint] = useState<PriceSuggestion | null>(null);
   const [form, setForm] = useState({
     shipperId: 'shipper-1',
     origin: 'Jimma',
@@ -182,6 +184,7 @@ function ShipperPanel({ t }: { t: Strings }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setPriceHint(null);
     try {
       await api.createLoad({
         shipperId: form.shipperId,
@@ -192,6 +195,18 @@ function ShipperPanel({ t }: { t: Strings }) {
       });
       await refresh();
     } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function suggestPrice() {
+    setError(null);
+    try {
+      setPriceHint(
+        await api.getSuggestedPrice(form.origin, form.destination, Number(form.weightTons)),
+      );
+    } catch (e) {
+      setPriceHint(null);
       setError(e instanceof Error ? e.message : String(e));
     }
   }
@@ -286,7 +301,24 @@ function ShipperPanel({ t }: { t: Strings }) {
           />
         </label>
         <button type="submit">{t.postLoadBtn}</button>
+        <button type="button" onClick={() => void suggestPrice()}>
+          {t.suggestPriceBtn}
+        </button>
       </form>
+      {priceHint && (
+        <div className="card metric">
+          <strong>{priceHint.suggestedEtb.toLocaleString()} ETB</strong>
+          <span>{t.suggestedPrice}</span>
+          <em>
+            {priceHint.lowEtb.toLocaleString()}–{priceHint.highEtb.toLocaleString()} ETB ·{' '}
+            {priceHint.etbPerTonKm} ETB/t·km · {priceHint.distanceKm} km ·{' '}
+            {priceHint.sampleSize} {priceHint.basis}
+          </em>
+          <button onClick={() => setForm({ ...form, offeredPriceEtb: priceHint.suggestedEtb })}>
+            {t.usePrice}
+          </button>
+        </div>
+      )}
 
       <h2>{t.loads}</h2>
       {loads.length === 0 && <p>{t.noLoads}</p>}

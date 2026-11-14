@@ -13,6 +13,7 @@ const PATTERNS: Array<[AgentIntent, RegExp]> = [
   ['assign_truck', /assign|book|dispatch|ሹጥ|ቀጥር/i],
   ['find_return_loads', /return\s*loads?|backhaul|empty\s*(?:return|trip)|መምለሽ|ደጅር\s*መመል/i],
   ['find_matches', /match|truck|driver|carrier|available|መኪና|ሹፌር/i],
+  ['price_suggestion', /price|pricing|how\s*much.*charge|ዋጋ/i],
   ['post_load', /post|load|ship|cargo|ጫን|ላክ|ጭነት/i],
   ['help', /help|what can you|እርዳታ/i],
 ];

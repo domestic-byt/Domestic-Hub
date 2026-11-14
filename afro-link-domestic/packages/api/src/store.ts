@@ -7,6 +7,7 @@ import {
   Load,
   OperatorMatch,
   PayoutAdapter,
+  PriceSuggestion,
   ReturnLoadMatch,
   Shipment,
   TrackingEvent,
@@ -20,6 +21,7 @@ import {
   nextAdvanceStatus,
   rankOperatorsForLoad,
   rankReturnLoads,
+  suggestPrice,
   validateAdvanceRequest,
 } from '@afro-link/shared';
 import type {
@@ -153,6 +155,14 @@ export class MarketplaceStore implements AgentStore {
     await this.repo.saveLoad(cancelled);
     void this.webhooks?.dispatch('load.cancelled', { load: cancelled, shipments });
     return cancelled;
+  }
+
+  async suggestLanePrice(input: {
+    origin: City;
+    destination: City;
+    weightTons: number;
+  }): Promise<PriceSuggestion | null> {
+    return suggestPrice(await this.repo.listLoads(), input);
   }
 
   async getEarnings(operatorId: string): Promise<OperatorEarnings> {

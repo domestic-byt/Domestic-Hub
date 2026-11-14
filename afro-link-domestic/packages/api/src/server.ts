@@ -13,6 +13,7 @@ import { invoiceRoutes } from './routes/invoices';
 import { agentRoutes } from './routes/agent';
 import { metricsRoutes } from './routes/metrics';
 import { webhookRoutes } from './routes/webhooks';
+import { marketRoutes } from './routes/market';
 import { WebhookDispatcher } from './webhooks';
 import { AuthConfig, authenticate } from './auth';
 
@@ -90,6 +91,7 @@ export async function buildServer(options?: {
   app.register(async (instance) => agentRoutes(instance, agent));
   app.register(async (instance) => metricsRoutes(instance, store));
   app.register(async (instance) => webhookRoutes(instance, repo));
+  app.register(async (instance) => marketRoutes(instance, store));
 
   app.addHook('onClose', async () => {
     await repo.close();

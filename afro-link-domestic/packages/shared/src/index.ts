@@ -7,3 +7,4 @@ export * from './domain/errors';
 export * from './domain/cities';
 export * from './domain/payouts';
 export * from './domain/backhaul';
+export * from './domain/pricing';

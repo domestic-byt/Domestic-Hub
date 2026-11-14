@@ -8,6 +8,7 @@ import type {
   Operator,
   OperatorEarnings,
   OperatorMatch,
+  PriceSuggestion,
   ReturnLoadMatch,
   Shipment,
   TrackingEvent,
@@ -108,6 +109,12 @@ export const api = {
   }) => request<Load>('/loads', 'POST', input),
   getMatches: (loadId: string) => request<OperatorMatch[]>(`/loads/${loadId}/matches`, 'GET'),
   cancelLoad: (loadId: string) => request<Load>(`/loads/${loadId}/cancel`, 'POST'),
+
+  getSuggestedPrice: (origin: string, destination: string, weightTons: number) =>
+    request<PriceSuggestion>(
+      `/markets/prices?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&weightTons=${weightTons}`,
+      'GET',
+    ),
 
   getReturnLoads: (operatorId: string) =>
     request<ReturnLoadMatch[]>(`/operators/${operatorId}/return-loads`, 'GET'),

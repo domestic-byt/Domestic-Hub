@@ -10,10 +10,12 @@ import {
   TruckOperator,
   MarketplaceMetrics,
   OperatorEarnings,
+  PriceSuggestion,
   VatInvoice,
   computeVat,
   rankOperatorsForLoad,
   rankReturnLoads,
+  suggestPrice,
   validateAdvanceRequest,
 } from '@afro-link/shared';
 import { DomesticAgent } from '../src/agent';
@@ -199,6 +201,14 @@ class FakeStore implements AgentStore {
     };
   }
 
+  async suggestLanePrice(input: {
+    origin: City;
+    destination: City;
+    weightTons: number;
+  }): Promise<PriceSuggestion | null> {
+    return suggestPrice([...this.loads.values()], input);
+  }
+
   async getMetrics(): Promise<MarketplaceMetrics> {
     const loads = [...this.loads.values()];
     const shipments = [...this.shipments.values()];
@@ -269,6 +279,10 @@ describe('detectIntent', () => {
     expect(detectIntent('ተሰርዝ አስፈልገኛል')).toBe('cancel_load');
     expect(detectIntent('how much have I earned?')).toBe('earnings');
     expect(detectIntent('ገቢዬ ስንት ነው?')).toBe('earnings');
+    expect(detectIntent('what price for 20 tons from Jimma to Addis Ababa?')).toBe(
+      'price_suggestion',
+    );
+    expect(detectIntent('ዋጋው ስንት ነው?')).toBe('price_suggestion');
     expect(detectIntent('help')).toBe('help');
     expect(detectIntent('xyzzy')).toBe('unknown');
   });
@@ -474,6 +488,30 @@ describe('DomesticAgent', () => {
     expect(result.reply).toContain('1 delivered shipment');
     expect(result.reply).toContain('40000 ETB');
     expect(result.reply).toContain('net 40000 ETB');
+  });
+
+  it('suggests lane prices from delivered history', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+
+    const noData = await agent.handle('what price for 20 tons from Jimma to Addis Ababa?');
+    expect(noData.intent).toBe('price_suggestion');
+    expect(noData.reply).toMatch(/No delivered loads/);
+
+    for (const price of [40000, 44000, 48000]) {
+      const load = await store.createLoad({
+        shipperId: 'shipper-1',
+        origin: jimma,
+        destination: addis,
+        weightTons: 20,
+        offeredPriceEtb: price,
+      });
+      store.loads.set(load.id, { ...load, status: 'delivered' });
+    }
+
+    const result = await agent.handle('what price for 20 tons from Jimma to Addis Ababa?');
+    expect(result.reply).toContain('Suggested price for 20 t');
+    expect(result.reply).toContain('ETB/t·km from 3 lane deliveries');
   });
 
   it('reports marketplace metrics', async () => {

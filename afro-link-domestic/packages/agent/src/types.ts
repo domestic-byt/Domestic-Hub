@@ -6,6 +6,7 @@ import {
   MarketplaceMetrics,
   OperatorEarnings,
   OperatorMatch,
+  PriceSuggestion,
   ReturnLoadMatch,
   Shipment,
   TrackingEvent,
@@ -47,6 +48,11 @@ export interface AgentStore {
   findLatestLoad(): Promise<Load | undefined>;
   cancelLoad(loadId: string): Promise<Load>;
   getEarnings(operatorId: string): Promise<OperatorEarnings>;
+  suggestLanePrice(input: {
+    origin: City;
+    destination: City;
+    weightTons: number;
+  }): Promise<PriceSuggestion | null>;
   getMetrics(): Promise<MarketplaceMetrics>;
 }
 
@@ -66,6 +72,7 @@ export type AgentIntent =
   | 'get_metrics'
   | 'cancel_load'
   | 'earnings'
+  | 'price_suggestion'
   | 'help'
   | 'unknown';
 

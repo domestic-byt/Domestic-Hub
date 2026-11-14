@@ -45,6 +45,7 @@ The web app reads `VITE_API_BASE` at build time (defaults to `/api`, proxied in 
 | GET/POST | `/invoices` | VAT invoices (15% Ethiopian VAT, TIN fields) |
 | POST | `/agent/chat` | Domestic AI Agent: conversational posting, matching, advances, tracking, invoicing (EN/AM) |
 | GET | `/metrics` | Marketplace KPIs: loads/shipments funnel, avg deadhead km, zero-deadhead share, disbursed advances by channel, VAT totals (admin-only when auth is enabled) |
+| GET | `/markets/prices` | Lane price benchmark: median ETB per ton-km from delivered loads (lane first, network fallback) → suggested price with ±10% range |
 | POST | `/webhooks` | Register an outbound webhook (`{url, events?, secret?}`); receives signed shipment events |
 | GET/DELETE | `/webhooks` | List (admin, secrets redacted) / delete (admin) registered webhooks |
 
@@ -52,6 +53,7 @@ The web app reads `VITE_API_BASE` at build time (defaults to `/api`, proxied in 
 
 - **Backhaul engine** (`rankReturnLoads`) flips the matching problem around: given a truck's current location, it ranks open loads that pick up nearby so the return leg earns money instead of running empty. Every assignment records the empty-repositioning distance (`deadheadKm`) from the truck's last drop-off to the pickup city, and `GET /metrics` aggregates it into `avgDeadheadKm` and `zeroDeadheadShare` (< 25 km, the share of trips that avoided a meaningful empty leg) — the platform's core "empty return trips cut" KPIs.
 - **Matching engine** ranks operators by empty-repositioning distance from their last drop-off, capacity fit, and backhaul potential near the destination.
+- **Lane price benchmarking** (`suggestPrice`) learns ETB-per-ton-km medians from delivered loads — same lane first (≥ 3 deliveries), falling back to the whole network — and suggests a price with a ±10% range. Surfaced via `GET /markets/prices`, the agent ("what price for 20 tons from Jimma to Addis Ababa?" / "ዋጋ"), and a Suggest-price button in the web Shipper form.
 - **Driver earnings** (`GET /operators/:id/earnings`) total the value of delivered shipments, subtract outstanding fuel advances (requested/approved/disbursed), and report the net position per operator.
 - **Fuel advances** are capped at 20% of the load price, require an assigned load, one active advance per operator, and follow a strict state machine (`requested → approved → disbursed → recovered`, with `rejected`/`defaulted` terminal states). `disburse` and `recover` execute through a **`PayoutAdapter`** (Telebirr / CBE Birr); a failed payout blocks the transition and the advance keeps its status. Simulated adapters ship today (`TB-SIM-*` / `CBE-SIM-*` references) — real gateways implement the same two-method interface.
 - **VAT invoices** apply the 15% Ethiopian VAT rate and carry shipper/operator TINs for compliance.

@@ -21,6 +21,7 @@ const HELP_TEXT = [
   '- Metrics: "show me the business report"',
   '- Cancel: "cancel load <id>"',
   '- Earnings: "how much have I earned?"',
+  '- Pricing: "what price for 20 tons from Jimma to Addis Ababa?"',
 ].join('\n');
 
 const UNKNOWN_TEXT = "I didn't catch that. " + HELP_TEXT;
@@ -80,6 +81,8 @@ export class DomesticAgent {
           return await this.cancelLoad(message, memory);
         case 'earnings':
           return await this.reportEarnings(message, ctx, memory);
+        case 'price_suggestion':
+          return await this.suggestPricing(message, memory);
         case 'help':
           return { reply: HELP_TEXT };
         default:
@@ -316,6 +319,37 @@ export class DomesticAgent {
     return {
       reply: `Load ${load.id} cancelled. The truck is free again and can take return loads near its current location.`,
       data: load,
+    };
+  }
+
+  private async suggestPricing(message: string, memory: AgentMemoryState) {
+    const slots = extractSlots(message);
+    const [origin, destination] = slots.cities;
+    const merged = {
+      origin: origin ?? memory.lastOrigin,
+      destination: destination ?? memory.lastDestination,
+      weightTons: slots.weightTons ?? memory.lastWeightTons,
+    };
+    if (!merged.origin || !merged.destination || !merged.weightTons) {
+      return {
+        reply:
+          'I can suggest a market price. Tell me the lane and weight — e.g. "what price for 20 tons from Jimma to Addis Ababa?"',
+      };
+    }
+    const suggestion = await this.store.suggestLanePrice({
+      origin: merged.origin,
+      destination: merged.destination,
+      weightTons: merged.weightTons,
+    });
+    if (!suggestion) {
+      return {
+        reply: `No delivered loads on record yet, so I cannot benchmark ${merged.origin.name} → ${merged.destination.name}. Post the load at your best estimate and I will learn from deliveries.`,
+        data: null,
+      };
+    }
+    return {
+      reply: `Suggested price for ${merged.weightTons} t ${merged.origin.name} → ${merged.destination.name} (${suggestion.distanceKm} km): ${suggestion.suggestedEtb} ETB (range ${suggestion.lowEtb}–${suggestion.highEtb}, ${suggestion.etbPerTonKm} ETB/t·km from ${suggestion.sampleSize} ${suggestion.basis} deliveries). Say "post ${merged.weightTons} tons from ${merged.origin.name} to ${merged.destination.name} for ${suggestion.suggestedEtb} birr" to list it.`,
+      data: suggestion,
     };
   }
 

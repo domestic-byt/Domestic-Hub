@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { rankOperatorsForLoad } from '../src/domain/matching';
+import { suggestPrice } from '../src/domain/pricing';
 import { computeVat, ETHIOPIAN_VAT_RATE } from '../src/domain/vat';
 import {
   nextAdvanceStatus,
@@ -144,5 +145,44 @@ describe('validateAdvanceRequest', () => {
       activeAdvances: [],
     });
     expect(errors.join(' ')).toMatch(/assigned or delivered/);
+  });
+});
+
+describe('lane price benchmarking', () => {
+  const deliveredLane = [
+    makeLoad({ id: 'l1', status: 'delivered', offeredPriceEtb: 40000 }),
+    makeLoad({ id: 'l2', status: 'delivered', offeredPriceEtb: 44000 }),
+    makeLoad({ id: 'l3', status: 'delivered', offeredPriceEtb: 48000 }),
+  ];
+
+  it('suggests a price from delivered lane history', () => {
+    const suggestion = suggestPrice(deliveredLane, {
+      origin: jimma,
+      destination: addis,
+      weightTons: 20,
+    });
+    expect(suggestion).not.toBeNull();
+    expect(suggestion!.basis).toBe('lane');
+    expect(suggestion!.sampleSize).toBe(3);
+    expect(suggestion!.suggestedEtb).toBeGreaterThan(0);
+    expect(suggestion!.lowEtb).toBeLessThan(suggestion!.suggestedEtb);
+    expect(suggestion!.highEtb).toBeGreaterThan(suggestion!.suggestedEtb);
+  });
+
+  it('falls back to the network median when the lane has few deliveries', () => {
+    const otherLane = [
+      makeLoad({ id: 'n1', status: 'delivered', origin: bahirDar, destination: mekelle, offeredPriceEtb: 50000 }),
+    ];
+    const suggestion = suggestPrice([...otherLane, ...deliveredLane.slice(0, 2)], {
+      origin: bahirDar,
+      destination: mekelle,
+      weightTons: 10,
+    });
+    expect(suggestion).not.toBeNull();
+    expect(suggestion!.basis).toBe('network');
+  });
+
+  it('returns null with no delivered history', () => {
+    expect(suggestPrice([makeLoad()], { origin: jimma, destination: addis, weightTons: 20 })).toBeNull();
   });
 });

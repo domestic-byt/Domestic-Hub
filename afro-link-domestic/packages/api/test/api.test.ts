@@ -320,6 +320,67 @@ describe('marketplace api', async () => {
     expect(delivered.json().error).toMatch(/delivered/i);
   });
 
+  it('suggests lane prices from delivered history', async () => {
+    for (const [i, price] of [40000, 44000, 48000].entries()) {
+      const operator = (
+        await app.inject({
+          method: 'POST',
+          url: '/operators',
+          payload: {
+            name: `Pricing Trucks ${i}`,
+            phone: `+25191200000${i}`,
+            truckPlate: `AP-000${i}`,
+            capacityTons: 25,
+            currentCity: jimma,
+          },
+        })
+      ).json();
+      const load = (
+        await app.inject({
+          method: 'POST',
+          url: '/loads',
+          payload: {
+            shipperId: 'shipper-pricing',
+            origin: jimma,
+            destination: addis,
+            weightTons: 20,
+            offeredPriceEtb: price,
+          },
+        })
+      ).json();
+      const shipment = (
+        await app.inject({
+          method: 'POST',
+          url: '/shipments',
+          payload: { loadId: load.id, operatorId: operator.id },
+        })
+      ).json();
+      await app.inject({
+        method: 'POST',
+        url: `/shipments/${shipment.id}/events`,
+        payload: { kind: 'delivered', location: addis },
+      });
+    }
+
+    const suggestion = await app.inject({
+      method: 'GET',
+      url: '/markets/prices?origin=Jimma&destination=Addis%20Ababa&weightTons=20',
+    });
+    expect(suggestion.statusCode).toBe(200);
+    expect(suggestion.json().basis).toBe('lane');
+    expect(suggestion.json().sampleSize).toBeGreaterThanOrEqual(3);
+    expect(suggestion.json().suggestedEtb).toBeGreaterThan(0);
+
+    const badParams = await app.inject({ method: 'GET', url: '/markets/prices?origin=Jimma' });
+    expect(badParams.statusCode).toBe(400);
+
+    const unknownCity = await app.inject({
+      method: 'GET',
+      url: '/markets/prices?origin=Narnia&destination=Addis%20Ababa&weightTons=20',
+    });
+    expect(unknownCity.statusCode).toBe(404);
+  });
+
   it('reports operator earnings', async () => {
     const operator = (
       await app.inject({
