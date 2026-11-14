@@ -6,9 +6,11 @@ Asset-light, AI-powered freight marketplace connecting Ethiopian shippers with i
 
 ```
 packages/
-  shared/   Domain core: types, geo, Ethiopian cities, load-matching engine, Ethiopian VAT, fuel-advance rules, DomainError
+  shared/   Domain core: types, geo, Ethiopian cities, load-matching engine, Ethiopian VAT, fuel-advance rules, payout port, DomainError
   agent/    Domestic AI Agent: EN/AM intent detection, slot extraction, tool-calling agent core, LLM adapter interface
   api/      Fastify marketplace API (loads, matches, shipments, tracking, advances, invoices, /agent/chat)
+apps/
+  web/      React + Vite dashboard: shipper (post loads, matches, assign), driver (register, fuel advances), live tracking, AI agent chat (EN/AM)
 ```
 
 ## Quickstart
@@ -17,8 +19,12 @@ packages/
 npm install
 npm test          # run all vitest suites
 npm run typecheck
+npm run build     # build the web app
 npm run dev:api   # start API on http://127.0.0.1:3000
+npm run dev:web   # start web dashboard on http://localhost:5173 (proxies /api to the API)
 ```
+
+The web app reads `VITE_API_BASE` at build time (defaults to `/api`, proxied in dev). For production: `VITE_API_BASE=https://afro-link.domestic.com.et npm run build`.
 
 ## API surface
 

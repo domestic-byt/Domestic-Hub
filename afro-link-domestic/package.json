@@ -5,12 +5,15 @@
   "type": "module",
   "description": "Asset-light, AI-powered domestic freight marketplace for Ethiopia, inside DomesticHub.",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
-    "typecheck": "tsc -p packages/shared --noEmit && tsc -p packages/agent --noEmit && tsc -p packages/api --noEmit",
+    "typecheck": "tsc -p packages/shared --noEmit && tsc -p packages/agent --noEmit && tsc -p packages/api --noEmit && tsc -p apps/web --noEmit",
     "test": "vitest run",
-    "dev:api": "tsx watch packages/api/src/server.ts"
+    "build": "npm run build --workspace @afro-link/web",
+    "dev:api": "tsx watch packages/api/src/server.ts",
+    "dev:web": "npm run dev --workspace @afro-link/web"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
