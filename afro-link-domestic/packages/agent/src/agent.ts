@@ -1,4 +1,4 @@
-import { DomainError } from '@afro-link/shared';
+import { DomainError, KycDecision } from '@afro-link/shared';
 import { detectIntent } from './intent';
 import { AgentMemory, AgentMemoryState, InMemoryAgentMemory } from './memory';
 import { extractSlots } from './slots';
@@ -24,6 +24,7 @@ const HELP_TEXT = [
   '- Pricing: "what price for 20 tons from Jimma to Addis Ababa?"',
   '- Proof of delivery: "confirm delivery received by <name>"',
   '- Rate a delivery: "rate 5 stars"',
+  '- KYC review (admin): "show KYC queue", "approve operator <id>"',
 ].join('\n');
 
 const UNKNOWN_TEXT = "I didn't catch that. " + HELP_TEXT;
@@ -87,6 +88,8 @@ export class DomesticAgent {
           return await this.rateShipment(message, ctx, memory);
         case 'earnings':
           return await this.reportEarnings(message, ctx, memory);
+        case 'review_kyc':
+          return await this.reviewKyc(message, ctx, memory);
         case 'price_suggestion':
           return await this.suggestPricing(message, memory);
         case 'help':
@@ -436,6 +439,55 @@ export class DomesticAgent {
     return {
       reply: `Earnings for ${earnings.operatorName} (${operatorId}): ${earnings.deliveredShipments} delivered shipment${earnings.deliveredShipments === 1 ? '' : 's'} worth ${earnings.grossEtb} ETB, ${earnings.outstandingAdvanceEtb} ETB in outstanding fuel advances, net ${earnings.netEtb} ETB.`,
       data: earnings,
+    };
+  }
+
+  private async reviewKyc(message: string, ctx: AgentContext, memory: AgentMemoryState) {
+    if (!ctx.admin) {
+      return {
+        reply: '⚠️ KYC review is available to admins only. Sign in with an admin token.',
+      };
+    }
+    const approveRe = /\bapprov(?:e|al)\b|\baccept\b|አጽድቅ|hayyami|ansaxi|idhinisha/i;
+    const rejectRe = /\breject\b|\bdeny\b|ውድቅ|\bdidi\b|\bdiid\b|kataa/i;
+    const decision: KycDecision | undefined = approveRe.test(message)
+      ? 'approved'
+      : rejectRe.test(message)
+        ? 'rejected'
+        : undefined;
+    const { ids } = extractSlots(message);
+    const shortId = message.match(/operator\s+([A-Za-z0-9][A-Za-z0-9-]*)/i)?.[1];
+    const operatorId =
+      ids[0] ?? (shortId && shortId.toLowerCase() !== 'id' ? shortId : memory.lastOperatorId);
+    if (decision && operatorId) {
+      const operator = await this.store.reviewKyc({ operatorId, decision });
+      memory.lastOperatorId = operator.id;
+      return {
+        reply:
+          decision === 'approved'
+            ? `✅ Operator ${operator.name} (${operator.id}) KYC approved.`
+            : `⛔ Operator ${operator.name} (${operator.id}) KYC rejected — hidden from matches and blocked from assignment.`,
+        data: operator,
+      };
+    }
+    if (decision) {
+      return {
+        reply: 'Which operator? Give the operator id, e.g. "approve operator <id>".',
+      };
+    }
+    const queue = await this.store.kycReviewQueue();
+    const top = queue.slice(0, 5);
+    const lines = top.map((r) => {
+      const issues = r.issues.length > 0 ? ` — ${r.issues.join('; ')}` : '';
+      return `- ${r.operatorName} (${r.operatorId}) · ${r.status} · decision: ${r.decision}${issues}`;
+    });
+    return {
+      reply: [
+        `🛡️ KYC review queue (${queue.length} operators${queue.length > top.length ? ', top 5' : ''}):`,
+        ...lines,
+        'Approve or reject with "approve operator <id>" / "reject operator <id>".',
+      ].join('\n'),
+      data: queue,
     };
   }
 

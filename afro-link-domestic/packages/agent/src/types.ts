@@ -2,6 +2,8 @@ import {
   AdvanceChannel,
   City,
   FuelAdvance,
+  KycDecision,
+  KycReview,
   Load,
   MarketplaceMetrics,
   OperatorEarnings,
@@ -11,6 +13,7 @@ import {
   ReturnLoadMatch,
   Shipment,
   TrackingEvent,
+  TruckOperator,
   VatInvoice,
 } from '@afro-link/shared';
 
@@ -60,6 +63,13 @@ export interface AgentStore {
     comment?: string;
   }): Promise<Rating>;
   getEarnings(operatorId: string): Promise<OperatorEarnings>;
+  kycReviewQueue(): Promise<KycReview[]>;
+  reviewKyc(input: {
+    operatorId: string;
+    decision: KycDecision;
+    licenseExpiry?: string;
+    insuranceExpiry?: string;
+  }): Promise<TruckOperator>;
   suggestLanePrice(input: {
     origin: City;
     destination: City;
@@ -85,6 +95,7 @@ export type AgentIntent =
   | 'cancel_load'
   | 'capture_pod'
   | 'rate_shipment'
+  | 'review_kyc'
   | 'earnings'
   | 'price_suggestion'
   | 'help'
@@ -97,6 +108,7 @@ export interface AgentContext {
   shipperTin?: string;
   operatorTin?: string;
   lang?: string;
+  admin?: boolean;
 }
 
 export interface AgentResult {

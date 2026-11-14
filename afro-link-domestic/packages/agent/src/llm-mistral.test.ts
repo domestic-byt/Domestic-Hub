@@ -120,6 +120,12 @@ describe('agent LLM fallback', () => {
     async getEarnings(): Promise<never> {
       throw new Error('not used');
     }
+    async kycReviewQueue(): Promise<never> {
+      throw new Error('not used');
+    }
+    async reviewKyc(): Promise<never> {
+      throw new Error('not used');
+    }
     async suggestLanePrice(): Promise<never> {
       throw new Error('not used');
     }

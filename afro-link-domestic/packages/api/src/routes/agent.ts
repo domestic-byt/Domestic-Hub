@@ -13,6 +13,7 @@ export async function agentRoutes(app: FastifyInstance, agent: DomesticAgent) {
       shipperTin?: string;
       operatorTin?: string;
       lang?: string;
+      admin?: boolean;
     } | null;
     if (!body || typeof body.message !== 'string' || body.message.trim() === '') {
       return reply.code(400).send({ error: 'message is required.' });
@@ -25,6 +26,7 @@ export async function agentRoutes(app: FastifyInstance, agent: DomesticAgent) {
       shipperTin: body.shipperTin,
       operatorTin: body.operatorTin,
       lang: body.lang,
+      admin: actor ? actor.role === 'admin' : body.admin === true,
     });
   });
 }

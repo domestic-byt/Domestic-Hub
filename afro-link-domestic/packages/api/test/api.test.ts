@@ -1056,6 +1056,25 @@ describe('domestic ai agent endpoint', async () => {
     expect(res.json().intent).toBe('unknown');
     expect(res.json().reply).toContain('Domestic AI Agent');
   });
+
+  it('gates agent KYC review behind the admin flag', async () => {
+    const denied = await app.inject({
+      method: 'POST',
+      url: '/agent/chat',
+      payload: { message: 'show the KYC queue' },
+    });
+    expect(denied.json().intent).toBe('review_kyc');
+    expect(denied.json().reply).toMatch(/admins only/i);
+
+    const allowed = await app.inject({
+      method: 'POST',
+      url: '/agent/chat',
+      payload: { message: 'show the KYC queue', admin: true },
+    });
+    expect(allowed.statusCode).toBe(200);
+    expect(allowed.json().reply).toContain('KYC review queue');
+    expect(Array.isArray(allowed.json().data)).toBe(true);
+  });
 });
 
 function failingAdapter(channel: 'telebirr' | 'cbe_birr'): PayoutAdapter {

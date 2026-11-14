@@ -4,6 +4,8 @@ import {
   City,
   DomainError,
   FuelAdvance,
+  KycDecision,
+  KycReview,
   Load,
   Shipment,
   TrackingEvent,
@@ -13,6 +15,7 @@ import {
   PriceSuggestion,
   VatInvoice,
   computeVat,
+  kycQueue,
   rankOperatorsForLoad,
   rankReturnLoads,
   suggestPrice,
@@ -264,6 +267,21 @@ class FakeStore implements AgentStore {
     return suggestPrice([...this.loads.values()], input);
   }
 
+  async kycReviewQueue(): Promise<KycReview[]> {
+    return kycQueue(this.operators);
+  }
+
+  async reviewKyc(input: {
+    operatorId: string;
+    decision: KycDecision;
+  }): Promise<TruckOperator> {
+    const operator = this.operators.find((o) => o.id === input.operatorId);
+    if (!operator) throw new DomainError('not_found', 'Operator not found.');
+    const updated = { ...operator, kycDecision: input.decision };
+    this.operators = this.operators.map((o) => (o.id === input.operatorId ? updated : o));
+    return updated;
+  }
+
   async getMetrics(): Promise<MarketplaceMetrics> {
     const loads = [...this.loads.values()];
     const shipments = [...this.shipments.values()];
@@ -330,6 +348,9 @@ describe('detectIntent', () => {
     expect(detectIntent('issue the VAT invoice')).toBe('create_invoice');
     expect(detectIntent('show me the business report')).toBe('get_metrics');
     expect(detectIntent('ሪፖርት አሳዩኝ')).toBe('get_metrics');
+    expect(detectIntent('show the KYC queue')).toBe('review_kyc');
+    expect(detectIntent('approve operator op-1')).toBe('review_kyc');
+    expect(detectIntent('ውድቅ አድርግ')).toBe('review_kyc');
     expect(detectIntent('cancel that load')).toBe('cancel_load');
     expect(detectIntent('ተሰርዝ አስፈልገኛል')).toBe('cancel_load');
     expect(detectIntent('how much have I earned?')).toBe('earnings');
@@ -623,6 +644,31 @@ describe('DomesticAgent', () => {
 
     const again = await agent.handle('rate 4 stars');
     expect(again.reply).toMatch(/\u26a0\ufe0f.*already been rated/);
+  });
+
+  it('reviews the KYC queue for admins only', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+
+    const forbidden = await agent.handle('show the KYC queue');
+    expect(forbidden.intent).toBe('review_kyc');
+    expect(forbidden.reply).toMatch(/admins only/i);
+
+    const queue = await agent.handle('show the KYC queue', { admin: true });
+    expect(queue.reply).toContain('KYC review queue');
+    expect(queue.reply).toContain('Abebe Trucks');
+    expect(queue.reply).toContain('unverified');
+
+    const noOperator = await agent.handle('approve it', { admin: true });
+    expect(noOperator.reply).toMatch(/which operator/i);
+
+    const approved = await agent.handle('approve operator op-near', { admin: true });
+    expect(approved.reply).toContain('KYC approved');
+    expect(store.operators[0]!.kycDecision).toBe('approved');
+
+    const rejected = await agent.handle('reject operator op-near', { admin: true });
+    expect(rejected.reply).toContain('KYC rejected');
+    expect(store.operators[0]!.kycDecision).toBe('rejected');
   });
 
   it('reports operator earnings after delivery', async () => {

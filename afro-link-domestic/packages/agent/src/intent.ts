@@ -6,6 +6,10 @@ const PATTERNS: Array<[AgentIntent, RegExp]> = [
     /metrics|kpis?|dashboard|business\s*(?:report|overview)|report|ሪፖርት|ግምገማ|lakkoofsa|tirakoob|ሕበረታ|vipimo/i,
   ],
   [
+    'review_kyc',
+    /\bkyc\b|approv(?:e|al)|\breject(?:ed|ion)?\b|\bverify\b|verification\s*(?:queue|status)?|\u130d\u121d\u130c\u121b|\u12a0\u133d\u12f5\u1245|\u12cd\u12f5\u1245|qormata|hayyami|dib-u-eegis|ansaxi|\u121d\u122d\u1218\u122b|\u12a3\u1338\u12f5\u1245|ukaguzi|idhinisha/i,
+  ],
+  [
     'request_advance',
     /advance|fuel|telebirr|cbe\s*birr|ነዳጅ|ቅድሚ\s*ካፍያ|kaffaltii|gaadhin|ቅድሚ\s*ክፍሊት|malipo\s*ya\s*mbele|mafuta/i,
   ],
