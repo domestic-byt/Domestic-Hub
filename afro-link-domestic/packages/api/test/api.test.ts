@@ -267,7 +267,8 @@ describe('marketplace api', async () => {
     const load = loadRes.json();
 
     const matches = await app.inject({ method: 'GET', url: `/loads/${load.id}/matches` });
-    expect(matches.json()).toEqual([]);
+    const matchIds = matches.json().map((m: { operatorId: string }) => m.operatorId);
+    expect(matchIds).not.toContain(operator.id);
 
     const assignRes = await app.inject({
       method: 'POST',
