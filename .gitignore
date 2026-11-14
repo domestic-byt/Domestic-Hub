@@ -12,3 +12,6 @@
 
 pkg/
 src/
+
+# Afro-Link Domestic scaffold (re-include src/ dirs excluded by the global src/ rule)
+!afro-link-domestic/packages/*/src/

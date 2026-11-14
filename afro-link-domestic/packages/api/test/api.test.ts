@@ -1,0 +1,190 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { buildServer } from '../src/server';
+
+const addis = { name: 'Addis Ababa', lat: 9.03, lon: 38.74 };
+const jimma = { name: 'Jimma', lat: 7.67, lon: 36.83 };
+
+describe('marketplace api', () => {
+  const app = buildServer();
+
+  beforeAll(async () => {
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('reports health', async () => {
+    const res = await app.inject({ method: 'GET', url: '/health' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ status: 'ok', service: 'afro-link-domestic-api' });
+  });
+
+  it('runs the full shipper-to-invoice flow', async () => {
+    const operatorRes = await app.inject({
+      method: 'POST',
+      url: '/operators',
+      payload: {
+        name: 'Abebe Trucks',
+        phone: '+251911000000',
+        truckPlate: 'AA-12345',
+        capacityTons: 25,
+        currentCity: addis,
+        lastDropOffCity: jimma,
+      },
+    });
+    expect(operatorRes.statusCode).toBe(201);
+    const operator = operatorRes.json();
+
+    const loadRes = await app.inject({
+      method: 'POST',
+      url: '/loads',
+      payload: {
+        shipperId: 'shipper-1',
+        origin: jimma,
+        destination: addis,
+        weightTons: 20,
+        offeredPriceEtb: 40000,
+      },
+    });
+    expect(loadRes.statusCode).toBe(201);
+    const load = loadRes.json();
+
+    const matchesRes = await app.inject({ method: 'GET', url: `/loads/${load.id}/matches` });
+    expect(matchesRes.statusCode).toBe(200);
+    const matches = matchesRes.json();
+    expect(matches).toHaveLength(1);
+    expect(matches[0].operatorId).toBe(operator.id);
+    expect(matches[0].deadheadKm).toBe(0);
+
+    const shipmentRes = await app.inject({
+      method: 'POST',
+      url: '/shipments',
+      payload: { loadId: load.id, operatorId: operator.id },
+    });
+    expect(shipmentRes.statusCode).toBe(201);
+    const shipment = shipmentRes.json();
+
+    const earlyInvoice = await app.inject({
+      method: 'POST',
+      url: '/invoices',
+      payload: { shipmentId: shipment.id, shipperTin: '0011223345', operatorTin: '0099887766' },
+    });
+    expect(earlyInvoice.statusCode).toBe(409);
+
+    const advanceRes = await app.inject({
+      method: 'POST',
+      url: '/advances',
+      payload: {
+        operatorId: operator.id,
+        shipmentId: shipment.id,
+        amountEtb: 8000,
+        channel: 'telebirr',
+      },
+    });
+    expect(advanceRes.statusCode).toBe(201);
+    const advance = advanceRes.json();
+
+    const disburseRes = await app.inject({
+      method: 'POST',
+      url: `/advances/${advance.id}/transition`,
+      payload: { action: 'disburse' },
+    });
+    expect(disburseRes.statusCode).toBe(409);
+
+    const approveRes = await app.inject({
+      method: 'POST',
+      url: `/advances/${advance.id}/transition`,
+      payload: { action: 'approve' },
+    });
+    expect(approveRes.statusCode).toBe(200);
+    expect(approveRes.json().status).toBe('approved');
+
+    const secondAdvance = await app.inject({
+      method: 'POST',
+      url: '/advances',
+      payload: {
+        operatorId: operator.id,
+        shipmentId: shipment.id,
+        amountEtb: 1000,
+        channel: 'cbe_birr',
+      },
+    });
+    expect(secondAdvance.statusCode).toBe(422);
+
+    const deliverRes = await app.inject({
+      method: 'POST',
+      url: `/shipments/${shipment.id}/events`,
+      payload: { kind: 'delivered', location: addis },
+    });
+    expect(deliverRes.statusCode).toBe(201);
+
+    const trackingRes = await app.inject({
+      method: 'GET',
+      url: `/shipments/${shipment.id}/tracking`,
+    });
+    expect(trackingRes.json().map((e: { kind: string }) => e.kind)).toEqual([
+      'assigned',
+      'delivered',
+    ]);
+
+    const invoiceRes = await app.inject({
+      method: 'POST',
+      url: '/invoices',
+      payload: { shipmentId: shipment.id, shipperTin: '0011223345', operatorTin: '0099887766' },
+    });
+    expect(invoiceRes.statusCode).toBe(201);
+    expect(invoiceRes.json()).toMatchObject({
+      subtotalEtb: 40000,
+      vatEtb: 6000,
+      totalEtb: 46000,
+    });
+  });
+
+  it('rejects oversize advance requests', async () => {
+    const operatorRes = await app.inject({
+      method: 'POST',
+      url: '/operators',
+      payload: {
+        name: 'Kebede Transport',
+        phone: '+251911000001',
+        truckPlate: 'AA-67890',
+        capacityTons: 30,
+        currentCity: addis,
+      },
+    });
+    const operator = operatorRes.json();
+    const loadRes = await app.inject({
+      method: 'POST',
+      url: '/loads',
+      payload: {
+        shipperId: 'shipper-2',
+        origin: addis,
+        destination: jimma,
+        weightTons: 10,
+        offeredPriceEtb: 20000,
+      },
+    });
+    const load = loadRes.json();
+    const shipmentRes = await app.inject({
+      method: 'POST',
+      url: '/shipments',
+      payload: { loadId: load.id, operatorId: operator.id },
+    });
+    const shipment = shipmentRes.json();
+
+    const advanceRes = await app.inject({
+      method: 'POST',
+      url: '/advances',
+      payload: {
+        operatorId: operator.id,
+        shipmentId: shipment.id,
+        amountEtb: 9000,
+        channel: 'telebirr',
+      },
+    });
+    expect(advanceRes.statusCode).toBe(422);
+    expect(advanceRes.json().errors[0]).toMatch(/20% cap/);
+  });
+});

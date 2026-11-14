@@ -1,0 +1,21 @@
+{
+  "name": "afro-link-domestic",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Asset-light, AI-powered domestic freight marketplace for Ethiopia, inside DomesticHub.",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p packages/shared --noEmit && tsc -p packages/api --noEmit",
+    "test": "vitest run",
+    "dev:api": "tsx watch packages/api/src/server.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.8"
+  }
+}
