@@ -8,6 +8,7 @@ const PATTERNS: Array<[AgentIntent, RegExp]> = [
   ['request_advance', /advance|fuel|telebirr|cbe\s*birr|ነዳጅ|ቅድመ\s*ክፍያ/i],
   ['track_shipment', /where|track|status|የት|ምን\s*ሁኔታ/i],
   ['cancel_load', /cancel|call\s*off|ሰርዝ|ተሰርዝ/i],
+  ['earnings', /earnings|income|how\s*much.*(earn|paid|make)|payout\s*history|ገቢ/i],
   ['create_invoice', /invoice|vat|ደረሰኝ/i],
   ['assign_truck', /assign|book|dispatch|ሹጥ|ቀጥር/i],
   ['find_return_loads', /return\s*loads?|backhaul|empty\s*(?:return|trip)|መምለሽ|ደጅር\s*መመል/i],

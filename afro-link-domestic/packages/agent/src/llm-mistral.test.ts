@@ -111,6 +111,9 @@ describe('agent LLM fallback', () => {
     async cancelLoad(): Promise<never> {
       throw new Error('not used');
     }
+    async getEarnings(): Promise<never> {
+      throw new Error('not used');
+    }
     async getMetrics(): Promise<never> {
       throw new Error('not used');
     }

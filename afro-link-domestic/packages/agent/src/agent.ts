@@ -20,6 +20,7 @@ const HELP_TEXT = [
   '- Invoices: "issue the VAT invoice" (15% Ethiopian VAT)',
   '- Metrics: "show me the business report"',
   '- Cancel: "cancel load <id>"',
+  '- Earnings: "how much have I earned?"',
 ].join('\n');
 
 const UNKNOWN_TEXT = "I didn't catch that. " + HELP_TEXT;
@@ -77,6 +78,8 @@ export class DomesticAgent {
           return await this.reportMetrics();
         case 'cancel_load':
           return await this.cancelLoad(message, memory);
+        case 'earnings':
+          return await this.reportEarnings(message, ctx, memory);
         case 'help':
           return { reply: HELP_TEXT };
         default:
@@ -313,6 +316,26 @@ export class DomesticAgent {
     return {
       reply: `Load ${load.id} cancelled. The truck is free again and can take return loads near its current location.`,
       data: load,
+    };
+  }
+
+  private async reportEarnings(message: string, ctx: AgentContext, memory: AgentMemoryState) {
+    const slots = extractSlots(message);
+    const operatorId =
+      slots.ids[0] ??
+      ctx.operatorId ??
+      memory.lastOperatorId ??
+      (await this.store.findLatestShipment())?.operatorId;
+    if (!operatorId) {
+      return {
+        reply:
+          'Which truck? Share the operator id, or finish assigning a shipment first.',
+      };
+    }
+    const earnings = await this.store.getEarnings(operatorId);
+    return {
+      reply: `Earnings for ${earnings.operatorName} (${operatorId}): ${earnings.deliveredShipments} delivered shipment${earnings.deliveredShipments === 1 ? '' : 's'} worth ${earnings.grossEtb} ETB, ${earnings.outstandingAdvanceEtb} ETB in outstanding fuel advances, net ${earnings.netEtb} ETB.`,
+      data: earnings,
     };
   }
 

@@ -77,6 +77,29 @@ describe('authenticated api', async () => {
     expect(res.statusCode).toBe(403);
   });
 
+  it('lets operators see only their own earnings', async () => {
+    const forbidden = await app.inject({
+      method: 'GET',
+      url: '/operators/someone-else/earnings',
+      headers: authed('operator', 'op-me'),
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    const shipperForbidden = await app.inject({
+      method: 'GET',
+      url: '/operators/op-me/earnings',
+      headers: authed('shipper'),
+    });
+    expect(shipperForbidden.statusCode).toBe(403);
+
+    const own = await app.inject({
+      method: 'GET',
+      url: '/operators/op-me/earnings',
+      headers: authed('operator', 'op-me'),
+    });
+    expect(own.statusCode).toBe(404);
+  });
+
   it('lets a shipper post loads and an operator register trucks', async () => {
     const operatorRes = await app.inject({
       method: 'POST',

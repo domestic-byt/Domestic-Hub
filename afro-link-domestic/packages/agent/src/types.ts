@@ -4,6 +4,7 @@ import {
   FuelAdvance,
   Load,
   MarketplaceMetrics,
+  OperatorEarnings,
   OperatorMatch,
   ReturnLoadMatch,
   Shipment,
@@ -45,6 +46,7 @@ export interface AgentStore {
   findLatestShipment(): Promise<Shipment | undefined>;
   findLatestLoad(): Promise<Load | undefined>;
   cancelLoad(loadId: string): Promise<Load>;
+  getEarnings(operatorId: string): Promise<OperatorEarnings>;
   getMetrics(): Promise<MarketplaceMetrics>;
 }
 
@@ -63,6 +65,7 @@ export type AgentIntent =
   | 'create_invoice'
   | 'get_metrics'
   | 'cancel_load'
+  | 'earnings'
   | 'help'
   | 'unknown';
 

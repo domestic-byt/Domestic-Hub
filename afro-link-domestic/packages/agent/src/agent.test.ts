@@ -9,6 +9,7 @@ import {
   TrackingEvent,
   TruckOperator,
   MarketplaceMetrics,
+  OperatorEarnings,
   VatInvoice,
   computeVat,
   rankOperatorsForLoad,
@@ -171,6 +172,33 @@ class FakeStore implements AgentStore {
     return cancelled;
   }
 
+  async getEarnings(operatorId: string): Promise<OperatorEarnings> {
+    const operator = this.operators.find((o) => o.id === operatorId);
+    if (!operator) throw new DomainError('not_found', 'Operator not found.');
+    const shipments = [...this.shipments.values()].filter(
+      (s) => s.operatorId === operatorId && s.status === 'delivered',
+    );
+    const grossEtb = shipments.reduce(
+      (sum, s) => sum + (this.loads.get(s.loadId)?.offeredPriceEtb ?? 0),
+      0,
+    );
+    const outstandingAdvanceEtb = this.advances
+      .filter(
+        (a) =>
+          a.operatorId === operatorId &&
+          (a.status === 'requested' || a.status === 'approved' || a.status === 'disbursed'),
+      )
+      .reduce((sum, a) => sum + a.amountEtb, 0);
+    return {
+      operatorId,
+      operatorName: operator.name,
+      deliveredShipments: shipments.length,
+      grossEtb,
+      outstandingAdvanceEtb,
+      netEtb: grossEtb - outstandingAdvanceEtb,
+    };
+  }
+
   async getMetrics(): Promise<MarketplaceMetrics> {
     const loads = [...this.loads.values()];
     const shipments = [...this.shipments.values()];
@@ -239,6 +267,8 @@ describe('detectIntent', () => {
     expect(detectIntent('ሪፖርት አሳዩኝ')).toBe('get_metrics');
     expect(detectIntent('cancel that load')).toBe('cancel_load');
     expect(detectIntent('ተሰርዝ አስፈልገኛል')).toBe('cancel_load');
+    expect(detectIntent('how much have I earned?')).toBe('earnings');
+    expect(detectIntent('ገቢዬ ስንት ነው?')).toBe('earnings');
     expect(detectIntent('help')).toBe('help');
     expect(detectIntent('xyzzy')).toBe('unknown');
   });
@@ -426,6 +456,24 @@ describe('DomesticAgent', () => {
 
     const again = await agent.handle('cancel that load');
     expect(again.reply).toMatch(/⚠️.*cancelled/);
+  });
+
+  it('reports operator earnings after delivery', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+    await agent.handle('Post 20 tons from Jimma to Addis Ababa for 40000 birr');
+    await agent.handle('assign the top match');
+
+    const early = await agent.handle('how much have I earned?');
+    expect(early.intent).toBe('earnings');
+    expect(early.reply).toContain('0 delivered');
+    expect(early.reply).toContain('net 0 ETB');
+
+    store.deliver((await store.findLatestShipment())!.id);
+    const result = await agent.handle('how much have I earned?');
+    expect(result.reply).toContain('1 delivered shipment');
+    expect(result.reply).toContain('40000 ETB');
+    expect(result.reply).toContain('net 40000 ETB');
   });
 
   it('reports marketplace metrics', async () => {

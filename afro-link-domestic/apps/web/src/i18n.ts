@@ -68,6 +68,11 @@ const EN = {
   advancesDisbursed: 'Advances disbursed (ETB)',
   vatCollected: 'VAT invoiced (ETB)',
   cancelLoadBtn: 'Cancel',
+  earningsHeading: 'Earnings',
+  viewEarnings: 'View earnings',
+  netEarnings: 'Net (ETB)',
+  grossEarnings: 'Gross:',
+  outstandingAdvances: 'Outstanding advances:',
   metricsAdminNote: 'Metrics are admin-only — sign in with an admin SSO token.',
 } as const;
 
@@ -138,6 +143,11 @@ const AM: Record<keyof typeof EN, string> = {
   advancesDisbursed: 'የተከፈሉ ክፍያዎች (ETB)',
   vatCollected: 'የተጠየቀ ቫት (ETB)',
   cancelLoadBtn: 'ሰርዝ',
+  earningsHeading: 'ገቢ',
+  viewEarnings: 'ገቢ ተመልከት',
+  netEarnings: 'ደረሰ (ማውጭ በቨት ባዲ ዘምን)',
+  grossEarnings: 'አጠቃላይ:',
+  outstandingAdvances: 'ቀሪ አድኖች:',
   metricsAdminNote: 'ሊፖርቱ ለአስተዳዳሪ ብቻ ነው — በአስተዳዳሪ ቶከን ይግቡ።',
 };
 

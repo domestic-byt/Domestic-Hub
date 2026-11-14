@@ -13,6 +13,7 @@ import {
   TrackingEventKind,
   TruckOperator,
   MarketplaceMetrics,
+  OperatorEarnings,
   VatInvoice,
   computeVat,
   haversineKm,
@@ -152,6 +153,38 @@ export class MarketplaceStore implements AgentStore {
     await this.repo.saveLoad(cancelled);
     void this.webhooks?.dispatch('load.cancelled', { load: cancelled, shipments });
     return cancelled;
+  }
+
+  async getEarnings(operatorId: string): Promise<OperatorEarnings> {
+    const operator = await this.getOperator(operatorId);
+    const [shipments, loads, advances] = await Promise.all([
+      this.repo.listShipments(),
+      this.repo.listLoads(),
+      this.repo.listAdvances(),
+    ]);
+    const loadById = new Map(loads.map((l) => [l.id, l]));
+    const delivered = shipments.filter(
+      (s) => s.operatorId === operatorId && s.status === 'delivered',
+    );
+    const grossEtb = delivered.reduce(
+      (sum, s) => sum + (loadById.get(s.loadId)?.offeredPriceEtb ?? 0),
+      0,
+    );
+    const outstandingAdvanceEtb = advances
+      .filter(
+        (a) =>
+          a.operatorId === operatorId &&
+          (a.status === 'requested' || a.status === 'approved' || a.status === 'disbursed'),
+      )
+      .reduce((sum, a) => sum + a.amountEtb, 0);
+    return {
+      operatorId,
+      operatorName: operator.name,
+      deliveredShipments: delivered.length,
+      grossEtb,
+      outstandingAdvanceEtb,
+      netEtb: grossEtb - outstandingAdvanceEtb,
+    };
   }
 
   async addTrackingEvent(

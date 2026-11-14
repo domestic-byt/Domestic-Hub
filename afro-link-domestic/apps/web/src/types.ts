@@ -83,6 +83,15 @@ export interface VatInvoice {
   issuedAt: string;
 }
 
+export interface OperatorEarnings {
+  operatorId: string;
+  operatorName: string;
+  deliveredShipments: number;
+  grossEtb: number;
+  outstandingAdvanceEtb: number;
+  netEtb: number;
+}
+
 export interface MarketplaceMetrics {
   loads: { total: number; open: number; assigned: number; delivered: number };
   shipments: { total: number; delivered: number };

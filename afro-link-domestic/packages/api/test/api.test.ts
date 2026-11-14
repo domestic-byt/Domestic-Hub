@@ -320,6 +320,79 @@ describe('marketplace api', async () => {
     expect(delivered.json().error).toMatch(/delivered/i);
   });
 
+  it('reports operator earnings', async () => {
+    const operator = (
+      await app.inject({
+        method: 'POST',
+        url: '/operators',
+        payload: {
+          name: 'Earnings Trucks',
+          phone: '+251911999000',
+          truckPlate: 'AA-33333',
+          capacityTons: 25,
+          currentCity: addis,
+        },
+      })
+    ).json();
+    const load = (
+      await app.inject({
+        method: 'POST',
+        url: '/loads',
+        payload: {
+          shipperId: 'shipper-earnings',
+          origin: addis,
+          destination: jimma,
+          weightTons: 10,
+          offeredPriceEtb: 30000,
+        },
+      })
+    ).json();
+    const shipment = (
+      await app.inject({
+        method: 'POST',
+        url: '/shipments',
+        payload: { loadId: load.id, operatorId: operator.id },
+      })
+    ).json();
+    await app.inject({
+      method: 'POST',
+      url: '/advances',
+      payload: {
+        operatorId: operator.id,
+        shipmentId: shipment.id,
+        amountEtb: 3000,
+        channel: 'telebirr',
+      },
+    });
+
+    const before = await app.inject({ method: 'GET', url: `/operators/${operator.id}/earnings` });
+    expect(before.statusCode).toBe(200);
+    expect(before.json()).toMatchObject({
+      operatorId: operator.id,
+      deliveredShipments: 0,
+      grossEtb: 0,
+      outstandingAdvanceEtb: 3000,
+      netEtb: -3000,
+    });
+
+    await app.inject({
+      method: 'POST',
+      url: `/shipments/${shipment.id}/events`,
+      payload: { kind: 'delivered', location: jimma },
+    });
+
+    const after = await app.inject({ method: 'GET', url: `/operators/${operator.id}/earnings` });
+    expect(after.json()).toMatchObject({
+      deliveredShipments: 1,
+      grossEtb: 30000,
+      outstandingAdvanceEtb: 3000,
+      netEtb: 27000,
+    });
+
+    const missing = await app.inject({ method: 'GET', url: '/operators/nope/earnings' });
+    expect(missing.statusCode).toBe(404);
+  });
+
   it('suggests return loads for an operator', async () => {
     const operatorRes = await app.inject({
       method: 'POST',

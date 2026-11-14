@@ -6,6 +6,7 @@ import type {
   Load,
   MarketplaceMetrics,
   Operator,
+  OperatorEarnings,
   OperatorMatch,
   ReturnLoadMatch,
   Shipment,
@@ -110,6 +111,9 @@ export const api = {
 
   getReturnLoads: (operatorId: string) =>
     request<ReturnLoadMatch[]>(`/operators/${operatorId}/return-loads`, 'GET'),
+
+  getEarnings: (operatorId: string) =>
+    request<OperatorEarnings>(`/operators/${operatorId}/earnings`, 'GET'),
 
   createShipment: (loadId: string, operatorId: string) =>
     request<Shipment>('/shipments', 'POST', { loadId, operatorId }),

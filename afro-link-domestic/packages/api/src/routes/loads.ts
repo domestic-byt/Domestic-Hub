@@ -53,6 +53,16 @@ interface LoadBody {
 export async function operatorRoutes(app: FastifyInstance, store: MarketplaceStore) {
   app.get('/operators', async () => store.listOperators());
 
+  app.get('/operators/:id/earnings', async (request, reply) => {
+    if (guard(request, reply, 'operator', 'admin')) return;
+    const { id } = request.params as { id: string };
+    const actor = request.actor;
+    if (actor?.role === 'operator' && actor.subject !== id) {
+      return reply.code(403).send({ error: 'Operators can only view their own earnings.' });
+    }
+    return run(reply, () => store.getEarnings(id));
+  });
+
   app.post('/operators', async (request, reply) => {
     if (guard(request, reply, 'operator', 'admin')) return;
     const body = request.body as Partial<TruckOperatorBody> | null;

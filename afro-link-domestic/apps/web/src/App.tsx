@@ -3,7 +3,14 @@ import { api, getAuthToken, setAuthToken } from './api';
 import { flushOutbox, outboxCount } from './outbox';
 import { Lang, loadLang, saveLang, STRINGS, Strings } from './i18n';
 import { useVoiceInput } from './useVoiceInput';
-import type { Load, MarketplaceMetrics, OperatorMatch, ReturnLoadMatch, TrackingEvent } from './types';
+import type {
+  Load,
+  MarketplaceMetrics,
+  OperatorEarnings,
+  OperatorMatch,
+  ReturnLoadMatch,
+  TrackingEvent,
+} from './types';
 
 const CITIES = [
   'Addis Ababa',
@@ -342,6 +349,8 @@ function DriverPanel({ t }: { t: Strings }) {
   });
   const [returnOperator, setReturnOperator] = useState('');
   const [returnLoads, setReturnLoads] = useState<ReturnLoadMatch[] | null>(null);
+  const [earningsOperator, setEarningsOperator] = useState('');
+  const [earnings, setEarnings] = useState<OperatorEarnings | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -395,6 +404,17 @@ function DriverPanel({ t }: { t: Strings }) {
     try {
       setReturnLoads(await api.getReturnLoads(returnOperator));
     } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function loadEarnings(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      setEarnings(await api.getEarnings(earningsOperator));
+    } catch (e) {
+      setEarnings(null);
       setError(e instanceof Error ? e.message : String(e));
     }
   }
@@ -530,6 +550,35 @@ function DriverPanel({ t }: { t: Strings }) {
           {m.reasons.length > 0 && <em className="muted">({m.reasons.join('; ')})</em>}
         </div>
       ))}
+
+      <h2>{t.earningsHeading}</h2>
+      <form onSubmit={loadEarnings} className="card row">
+        <label>
+          {t.operatorId}
+          <select value={earningsOperator} onChange={(e) => setEarningsOperator(e.target.value)}>
+            <option value="">—</option>
+            {operators.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name} ({o.currentCity.name})
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="submit" disabled={!earningsOperator}>
+          {t.viewEarnings}
+        </button>
+      </form>
+      {earnings && (
+        <div className="card metric">
+          <strong>{earnings.netEtb.toLocaleString()} ETB</strong>
+          <span>{t.netEarnings}</span>
+          <em>
+            {earnings.deliveredShipments} {t.delivered} · {t.grossEarnings}{' '}
+            {earnings.grossEtb.toLocaleString()} · {t.outstandingAdvances}{' '}
+            {earnings.outstandingAdvanceEtb.toLocaleString()}
+          </em>
+        </div>
+      )}
 
       <h2>{t.advances}</h2>
       {advances.length === 0 && <p>{t.noAdvances}</p>}
