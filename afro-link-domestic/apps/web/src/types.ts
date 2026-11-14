@@ -26,6 +26,7 @@ export interface KycReview {
   decision: 'pending' | 'approved' | 'rejected';
   status: 'unverified' | 'valid' | 'expired' | 'rejected';
   issues: string[];
+  expiring: string[];
 }
 
 export interface Load {

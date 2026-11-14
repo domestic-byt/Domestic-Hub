@@ -8,6 +8,8 @@ const VALID_EVENTS: WebhookEvent[] = [
   'shipment.assigned',
   'shipment.picked_up',
   'shipment.delivered',
+  'load.cancelled',
+  'operator.kyc_expiring',
 ];
 
 function isWebhookEvent(value: unknown): value is WebhookEvent {

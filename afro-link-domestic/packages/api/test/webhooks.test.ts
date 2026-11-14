@@ -170,4 +170,59 @@ describe('webhook api', async () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it('notifies operator.kyc_expiring once per operator and warning', async () => {
+    const deliveries: Array<{ url: string; headers: Record<string, string>; body: string }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit) => {
+        deliveries.push({
+          url,
+          headers: init.headers as Record<string, string>,
+          body: init.body as string,
+        });
+        return new Response('{}', { status: 200 });
+      }),
+    );
+    try {
+      const hook = (
+        await app.inject({
+          method: 'POST',
+          url: '/webhooks',
+          payload: { url: 'https://hooks.example/kyc', events: ['operator.kyc_expiring'] },
+        })
+      ).json();
+
+      const soon = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      await app.inject({
+        method: 'POST',
+        url: '/operators',
+        payload: {
+          name: 'Expiring Trucks',
+          phone: '+251911333222',
+          truckPlate: 'AA-33322',
+          capacityTons: 21,
+          currentCity: addis,
+          licenseExpiry: soon,
+        },
+      });
+
+      deliveries.length = 0;
+      await app.inject({ method: 'GET', url: '/admin/kyc' });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(deliveries).toHaveLength(1);
+      expect(deliveries[0]!.url).toBe(hook.url);
+      expect(deliveries[0]!.headers['x-afro-link-event']).toBe('operator.kyc_expiring');
+      const payload = JSON.parse(deliveries[0]!.body);
+      expect(payload.data.operatorName).toBe('Expiring Trucks');
+      expect(payload.data.warnings[0]).toContain(soon);
+
+      deliveries.length = 0;
+      await app.inject({ method: 'GET', url: '/admin/kyc' });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(deliveries).toHaveLength(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

@@ -124,7 +124,8 @@ export type WebhookEvent =
   | 'shipment.assigned'
   | 'shipment.picked_up'
   | 'shipment.delivered'
-  | 'load.cancelled';
+  | 'load.cancelled'
+  | 'operator.kyc_expiring';
 
 export interface Webhook {
   id: string;

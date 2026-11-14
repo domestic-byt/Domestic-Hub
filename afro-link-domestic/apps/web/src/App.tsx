@@ -1030,6 +1030,13 @@ function KycCard({
           ))}
         </ul>
       )}
+      {review.expiring.length > 0 && (
+        <ul>
+          {review.expiring.map((warning) => (
+            <li key={warning}>⏳ {warning}</li>
+          ))}
+        </ul>
+      )}
       <label>
         {t.licenseExpiry}{' '}
         <input type="date" value={license} onChange={(e) => setLicense(e.target.value)} />

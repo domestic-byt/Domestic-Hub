@@ -130,7 +130,9 @@ Live gateways enforce a 15s timeout (`*_TIMEOUT_MS` to override), map HTTP/netwo
 
 ## Webhooks
 
-Register an outbound webhook (`POST /webhooks` with `{url, events?, secret?}`) and Afro-Link Domestic pushes `shipment.assigned`, `shipment.picked_up`, `shipment.delivered` and `load.cancelled` events as JSON with an `X-Afro-Link-Signature: sha256=<hmac>` header (HMAC-SHA256 of the raw body with your secret — verify before trusting the payload). Omit `events` to receive everything; a secret is generated for you when omitted. Delivery failures and slow endpoints (5 s timeout) never block marketplace operations.
+Register an outbound webhook (`POST /webhooks` with `{url, events?, secret?}`) and Afro-Link Domestic pushes `shipment.assigned`, `shipment.picked_up`, `shipment.delivered`, `load.cancelled` and `operator.kyc_expiring` events as JSON with an `X-Afro-Link-Signature: sha256=<hmac>` header (HMAC-SHA256 of the raw body with your secret — verify before trusting the payload). Omit `events` to receive everything; a secret is generated for you when omitted. Delivery failures and slow endpoints (5 s timeout) never block marketplace operations.
+
+**KYC expiry reminders**: documents expiring within 30 days are flagged (`⏳` warnings) in the admin KYC queue and the agent's queue listing, and pushed once per operator and warning as signed `operator.kyc_expiring` webhooks whenever the queue is reviewed (deduped in memory per process).
 
 ## Web app
 

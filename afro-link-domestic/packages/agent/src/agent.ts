@@ -479,7 +479,8 @@ export class DomesticAgent {
     const top = queue.slice(0, 5);
     const lines = top.map((r) => {
       const issues = r.issues.length > 0 ? ` — ${r.issues.join('; ')}` : '';
-      return `- ${r.operatorName} (${r.operatorId}) · ${r.status} · decision: ${r.decision}${issues}`;
+      const expiring = r.expiring.length > 0 ? ` ⏳ ${r.expiring.join('; ')}` : '';
+      return `- ${r.operatorName} (${r.operatorId}) · ${r.status} · decision: ${r.decision}${issues}${expiring}`;
     });
     return {
       reply: [

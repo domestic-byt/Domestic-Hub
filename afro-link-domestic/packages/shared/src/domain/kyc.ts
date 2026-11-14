@@ -33,6 +33,36 @@ export interface KycReview {
   decision: KycDecision;
   status: KycStatus;
   issues: string[];
+  expiring: string[];
+}
+
+export const KYC_EXPIRY_SOON_DAYS = 30;
+
+export function kycExpiryWarnings(
+  operator: KycDocuments,
+  withinDays: number = KYC_EXPIRY_SOON_DAYS,
+  now: Date = new Date(),
+): string[] {
+  const today = now.toISOString().slice(0, 10);
+  const horizon = new Date(now.getTime() + withinDays * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const warnings: string[] = [];
+  if (
+    operator.licenseExpiry &&
+    operator.licenseExpiry >= today &&
+    operator.licenseExpiry <= horizon
+  ) {
+    warnings.push(`driving license expires on ${operator.licenseExpiry}`);
+  }
+  if (
+    operator.insuranceExpiry &&
+    operator.insuranceExpiry >= today &&
+    operator.insuranceExpiry <= horizon
+  ) {
+    warnings.push(`insurance expires on ${operator.insuranceExpiry}`);
+  }
+  return warnings;
 }
 
 const KYC_QUEUE_RANK: Record<KycStatus, number> = {
@@ -53,6 +83,7 @@ export function kycQueue(operators: TruckOperator[], now: Date = new Date()): Ky
       decision: o.kycDecision ?? ('pending' as KycDecision),
       status: kycStatus(o, now),
       issues: kycIssues(o, now),
+      expiring: kycExpiryWarnings(o, KYC_EXPIRY_SOON_DAYS, now),
     }))
     .sort(
       (a, b) =>

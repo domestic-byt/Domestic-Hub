@@ -26,6 +26,9 @@ import {
   ProofOfDelivery,
   kycIssues,
   kycQueue,
+  kycStatus,
+  kycExpiryWarnings,
+  KYC_EXPIRY_SOON_DAYS,
   KycDecision,
   KycReview,
   averageRating,
@@ -45,6 +48,8 @@ import { WebhookDispatcher } from './webhooks';
 const ZERO_DEADHEAD_KM = 25;
 
 export class MarketplaceStore implements AgentStore {
+  private readonly notifiedKycExpiry = new Set<string>();
+
   constructor(
     private readonly repo: MarketplaceRepo,
     private readonly payouts: Record<AdvanceChannel, PayoutAdapter> = defaultPayoutAdapters(),
@@ -238,7 +243,46 @@ export class MarketplaceStore implements AgentStore {
   }
 
   async kycReviewQueue(): Promise<KycReview[]> {
+    void this.notifyKycExpiry();
     return kycQueue(await this.repo.listOperators());
+  }
+
+  async notifyKycExpiry(
+    withinDays: number = KYC_EXPIRY_SOON_DAYS,
+  ): Promise<KycReview[]> {
+    const operators = await this.repo.listOperators();
+    const now = new Date();
+    const flagged: KycReview[] = [];
+    for (const operator of operators) {
+      const warnings = kycExpiryWarnings(operator, withinDays, now);
+      if (warnings.length === 0) continue;
+      let fresh = false;
+      for (const warning of warnings) {
+        const key = `${operator.id}:${warning}`;
+        if (this.notifiedKycExpiry.has(key)) continue;
+        this.notifiedKycExpiry.add(key);
+        fresh = true;
+      }
+      if (!fresh) continue;
+      flagged.push({
+        operatorId: operator.id,
+        operatorName: operator.name,
+        truckPlate: operator.truckPlate,
+        licenseExpiry: operator.licenseExpiry,
+        insuranceExpiry: operator.insuranceExpiry,
+        decision: operator.kycDecision ?? 'pending',
+        status: kycStatus(operator, now),
+        issues: kycIssues(operator, now),
+        expiring: warnings,
+      });
+      void this.webhooks?.dispatch('operator.kyc_expiring', {
+        operatorId: operator.id,
+        operatorName: operator.name,
+        truckPlate: operator.truckPlate,
+        warnings,
+      });
+    }
+    return flagged;
   }
 
   async suggestLanePrice(input: {
