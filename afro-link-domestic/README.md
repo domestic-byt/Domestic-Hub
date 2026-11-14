@@ -47,7 +47,7 @@ The web app reads `VITE_API_BASE` at build time (defaults to `/api`, proxied in 
 - **Matching engine** ranks operators by empty-repositioning distance from their last drop-off, capacity fit, and backhaul potential near the destination.
 - **Fuel advances** are capped at 20% of the load price, require an assigned load, one active advance per operator, and follow a strict state machine (`requested → approved → disbursed → recovered`, with `rejected`/`defaulted` terminal states). `disburse` and `recover` execute through a **`PayoutAdapter`** (Telebirr / CBE Birr); a failed payout blocks the transition and the advance keeps its status. Simulated adapters ship today (`TB-SIM-*` / `CBE-SIM-*` references) — real gateways implement the same two-method interface.
 - **VAT invoices** apply the 15% Ethiopian VAT rate and carry shipper/operator TINs for compliance.
-- **Domestic AI Agent** detects intents in English and Amharic (post load, find trucks, assign, fuel advance, track, invoice), extracts slots (cities from an 17-city Ethiopian gazetteer, tons, birr amounts, channels, ids), executes through the same `AgentStore` the HTTP API uses, and optionally polishes replies through a pluggable `LlmAdapter`.
+- **Domestic AI Agent** detects intents in English and Amharic (post load, find trucks, assign, fuel advance, track, invoice), extracts slots (cities from an 17-city Ethiopian gazetteer, tons, birr amounts, channels, ids), executes through the same `AgentStore` the HTTP API uses, and polishes replies through a pluggable `LlmAdapter`. Set `MISTRAL_API_KEY` to enable the Mistral adapter (`MistralLlmAdapter`, Mistral chat completions API); if the LLM call fails or the key is absent, the agent falls back to its deterministic replies.
 
 ## Domain & deployment
 
@@ -61,5 +61,5 @@ Canonical domain: **https://afro-link.domestic.com.et** (Afro-Link Domestic, par
 
 - `apps/web` — shipper dashboard and driver app (Amharic/English).
 - Real Telebirr (SuperApp API) / CBE Birr gateway credentials behind the existing `PayoutAdapter` interface.
-- Real LLM adapter (e.g. Mistral) behind the agent's `LlmAdapter` interface, plus voice input.
+- Voice input for the Domestic AI Agent.
 - Persistent storage (PostgreSQL) replacing the in-memory repo, plus auth via DomesticHub SSO.

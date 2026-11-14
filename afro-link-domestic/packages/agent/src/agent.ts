@@ -30,12 +30,17 @@ export class DomesticAgent {
   async handle(message: string, ctx: AgentContext = {}): Promise<AgentResult> {
     const intent = detectIntent(message);
     const outcome = this.execute(intent, message, ctx);
-    const reply = this.llm
-      ? await this.llm.complete({
+    let reply = outcome.reply;
+    if (this.llm) {
+      try {
+        reply = await this.llm.complete({
           system: this.systemPrompt(intent, outcome.data),
           messages: [{ role: 'user', content: message }],
-        })
-      : outcome.reply;
+        });
+      } catch {
+        reply = outcome.reply;
+      }
+    }
     return { intent, reply, data: outcome.data };
   }
 

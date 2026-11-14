@@ -1,7 +1,7 @@
 import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import { AdvanceChannel, PayoutAdapter } from '@afro-link/shared';
-import { DomesticAgent } from '@afro-link/agent';
+import { DomesticAgent, LlmAdapter, MistralLlmAdapter } from '@afro-link/agent';
 import { Repo } from './repo';
 import { MarketplaceStore } from './store';
 import { loadRoutes, operatorRoutes } from './routes/loads';
@@ -27,10 +27,16 @@ export function allowedOrigins(): string[] {
 
 export function buildServer(options?: {
   payouts?: Record<AdvanceChannel, PayoutAdapter>;
+  llm?: LlmAdapter;
 }): FastifyInstance {
   const app = Fastify({ logger: false });
   const store = new MarketplaceStore(new Repo(), options?.payouts);
-  const agent = new DomesticAgent(store);
+  const llm =
+    options?.llm ??
+    (process.env.MISTRAL_API_KEY
+      ? new MistralLlmAdapter({ apiKey: process.env.MISTRAL_API_KEY })
+      : undefined);
+  const agent = new DomesticAgent(store, llm);
   const origins = allowedOrigins();
 
   app.register(cors, {
