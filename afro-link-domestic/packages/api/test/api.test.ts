@@ -575,7 +575,7 @@ describe('domestic ai agent endpoint', async () => {
         name: 'Abebe Trucks',
         phone: '+251911000000',
         truckPlate: 'AA-12345',
-        capacityTons: 25,
+        capacityTons: 21,
         currentCity: jimma,
       },
     });
