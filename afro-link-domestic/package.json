@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "scripts": {
-    "typecheck": "tsc -p packages/shared --noEmit && tsc -p packages/api --noEmit",
+    "typecheck": "tsc -p packages/shared --noEmit && tsc -p packages/agent --noEmit && tsc -p packages/api --noEmit",
     "test": "vitest run",
     "dev:api": "tsx watch packages/api/src/server.ts"
   },

@@ -3,6 +3,7 @@ import { Load, TruckOperator } from './types';
 
 export interface OperatorMatch {
   operatorId: string;
+  operatorName: string;
   score: number;
   deadheadKm: number;
   reasons: string[];
@@ -48,6 +49,7 @@ export function rankOperatorsForLoad(
 
       return {
         operatorId: o.id,
+        operatorName: o.name,
         score: Math.round(score * 100) / 100,
         deadheadKm: Math.round(deadheadKm * 10) / 10,
         reasons,

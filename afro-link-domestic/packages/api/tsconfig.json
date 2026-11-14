@@ -3,7 +3,8 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@afro-link/shared": ["../shared/src/index.ts"]
+      "@afro-link/shared": ["../shared/src/index.ts"],
+      "@afro-link/agent": ["../agent/src/index.ts"]
     }
   },
   "include": ["src", "test"]

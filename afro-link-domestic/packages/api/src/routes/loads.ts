@@ -1,6 +1,6 @@
-import { FastifyInstance } from 'fastify';
-import { City, Load, TruckOperator, rankOperatorsForLoad } from '@afro-link/shared';
-import { Repo } from '../repo';
+import { FastifyInstance, FastifyReply } from 'fastify';
+import { City, DomainError } from '@afro-link/shared';
+import { MarketplaceStore } from '../store';
 
 function isCity(value: unknown): value is City {
   const v = value as City;
@@ -13,12 +13,48 @@ function isCity(value: unknown): value is City {
   );
 }
 
-export async function operatorRoutes(app: FastifyInstance, repo: Repo) {
-  app.get('/operators', async () => [...repo.operators.values()]);
+export function run<T>(
+  reply: FastifyReply,
+  fn: () => T,
+  successStatus?: number,
+): T | FastifyReply {
+  try {
+    const result = fn();
+    return successStatus === undefined ? result : reply.code(successStatus).send(result);
+  } catch (err) {
+    if (!(err instanceof DomainError)) throw err;
+    if (err.code === 'validation') {
+      return reply.code(422).send({ errors: err.issues });
+    }
+    const status = err.code === 'not_found' ? 404 : 409;
+    return reply.code(status).send({ error: err.message });
+  }
+}
+
+interface TruckOperatorBody {
+  name: string;
+  phone: string;
+  truckPlate: string;
+  capacityTons: number;
+  currentCity: City;
+  lastDropOffCity?: City;
+}
+
+interface LoadBody {
+  shipperId: string;
+  origin: City;
+  destination: City;
+  weightTons: number;
+  offeredPriceEtb: number;
+  availableFrom?: string;
+}
+
+export async function operatorRoutes(app: FastifyInstance, store: MarketplaceStore) {
+  app.get('/operators', async () => store.listOperators());
 
   app.post('/operators', async (request, reply) => {
-    const body = request.body as Partial<TruckOperator> | null;
-    if (!body?.name || !body?.phone || !body?.truckPlate) {
+    const body = request.body as Partial<TruckOperatorBody> | null;
+    if (!body || !body.name || !body.phone || !body.truckPlate) {
       return reply.code(400).send({ error: 'name, phone and truckPlate are required.' });
     }
     if (!isCity(body.currentCity)) {
@@ -27,31 +63,33 @@ export async function operatorRoutes(app: FastifyInstance, repo: Repo) {
     if (typeof body.capacityTons !== 'number' || body.capacityTons <= 0) {
       return reply.code(400).send({ error: 'capacityTons must be a positive number.' });
     }
-    const operator: TruckOperator = {
-      id: crypto.randomUUID(),
-      name: body.name,
-      phone: body.phone,
-      truckPlate: body.truckPlate,
-      capacityTons: body.capacityTons,
-      currentCity: body.currentCity,
-      lastDropOffCity: isCity(body.lastDropOffCity) ? body.lastDropOffCity : undefined,
-      status: 'available',
-    };
-    repo.operators.set(operator.id, operator);
-    return reply.code(201).send(operator);
+    const lastDropOffCity = body.lastDropOffCity;
+    return run(
+      reply,
+      () =>
+        store.createOperator({
+        name: body.name!,
+        phone: body.phone!,
+        truckPlate: body.truckPlate!,
+        capacityTons: body.capacityTons!,
+        currentCity: body.currentCity!,
+        lastDropOffCity: isCity(lastDropOffCity) ? lastDropOffCity : undefined,
+      }),
+      201,
+    );
   });
 }
 
-export async function loadRoutes(app: FastifyInstance, repo: Repo) {
-  app.get('/loads', async () => [...repo.loads.values()]);
+export async function loadRoutes(app: FastifyInstance, store: MarketplaceStore) {
+  app.get('/loads', async () => store.listLoads());
 
   app.post('/loads', async (request, reply) => {
-    const body = request.body as Partial<Load> | null;
-    if (!body?.shipperId) {
+    const body = request.body as Partial<LoadBody> | null;
+    if (!body || !body.shipperId) {
       return reply.code(400).send({ error: 'shipperId is required.' });
     }
     if (!isCity(body.origin) || !isCity(body.destination)) {
-      return reply.code(400).send({ error: 'origin and destination must be City {name, lat, lon}.' });
+      return reply.code(400).send({ error: 'origin and destination must be a City {name, lat, lon}.' });
     }
     if (typeof body.weightTons !== 'number' || body.weightTons <= 0) {
       return reply.code(400).send({ error: 'weightTons must be a positive number.' });
@@ -59,26 +97,23 @@ export async function loadRoutes(app: FastifyInstance, repo: Repo) {
     if (typeof body.offeredPriceEtb !== 'number' || body.offeredPriceEtb <= 0) {
       return reply.code(400).send({ error: 'offeredPriceEtb must be a positive number.' });
     }
-    const load: Load = {
-      id: crypto.randomUUID(),
-      shipperId: body.shipperId,
-      origin: body.origin,
-      destination: body.destination,
-      weightTons: body.weightTons,
-      availableFrom: body.availableFrom ?? new Date().toISOString(),
-      offeredPriceEtb: body.offeredPriceEtb,
-      status: 'open',
-    };
-    repo.loads.set(load.id, load);
-    return reply.code(201).send(load);
+    return run(
+      reply,
+      () =>
+        store.createLoad({
+          shipperId: body.shipperId!,
+          origin: body.origin!,
+          destination: body.destination!,
+          weightTons: body.weightTons!,
+          offeredPriceEtb: body.offeredPriceEtb!,
+          availableFrom: body.availableFrom,
+        }),
+      201,
+    );
   });
 
   app.get('/loads/:id/matches', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const load = repo.loads.get(id);
-    if (!load) {
-      return reply.code(404).send({ error: 'Load not found.' });
-    }
-    return rankOperatorsForLoad(load, [...repo.operators.values()]);
+    return run(reply, () => store.rankMatches(id));
   });
 }

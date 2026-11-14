@@ -188,3 +188,86 @@ describe('marketplace api', () => {
     expect(advanceRes.json().errors[0]).toMatch(/20% cap/);
   });
 });
+
+describe('domestic ai agent endpoint', () => {
+  const app = buildServer();
+
+  beforeAll(async () => {
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('rejects empty messages', async () => {
+    const res = await app.inject({ method: 'POST', url: '/agent/chat', payload: { message: '' } });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('posts a load and finds trucks through conversation', async () => {
+    await app.inject({
+      method: 'POST',
+      url: '/operators',
+      payload: {
+        name: 'Abebe Trucks',
+        phone: '+251911000000',
+        truckPlate: 'AA-12345',
+        capacityTons: 25,
+        currentCity: jimma,
+      },
+    });
+
+    const postRes = await app.inject({
+      method: 'POST',
+      url: '/agent/chat',
+      payload: {
+        message: 'Post 20 tons of coffee from Jimma to Addis Ababa for 40000 birr',
+        shipperId: 'shipper-1',
+      },
+    });
+    expect(postRes.statusCode).toBe(200);
+    const post = postRes.json();
+    expect(post.intent).toBe('post_load');
+    const loadId = post.data.id as string;
+    expect(loadId).toBeTruthy();
+
+    const matchRes = await app.inject({
+      method: 'POST',
+      url: '/agent/chat',
+      payload: { message: `find trucks for ${loadId}` },
+    });
+    expect(matchRes.statusCode).toBe(200);
+    const match = matchRes.json();
+    expect(match.intent).toBe('find_matches');
+    expect(match.reply).toContain('Abebe Trucks');
+
+    const assignRes = await app.inject({
+      method: 'POST',
+      url: '/agent/chat',
+      payload: { message: `assign the top match for ${loadId}` },
+    });
+    expect(assignRes.statusCode).toBe(200);
+    expect(assignRes.json().intent).toBe('assign_truck');
+
+    const advanceRes = await app.inject({
+      method: 'POST',
+      url: '/agent/chat',
+      payload: { message: 'request an 8000 birr telebirr advance' },
+    });
+    expect(advanceRes.statusCode).toBe(200);
+    expect(advanceRes.json().intent).toBe('request_advance');
+    expect(advanceRes.json().reply).toContain('telebirr');
+  });
+
+  it('answers unknown messages with help', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/agent/chat',
+      payload: { message: 'hello there' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().intent).toBe('unknown');
+    expect(res.json().reply).toContain('Domestic AI Agent');
+  });
+});
