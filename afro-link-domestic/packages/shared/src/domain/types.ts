@@ -17,7 +17,10 @@ export interface TruckOperator {
   status: OperatorStatus;
   licenseExpiry?: string;
   insuranceExpiry?: string;
+  kycDecision?: KycDecision;
 }
+
+export type KycDecision = 'pending' | 'approved' | 'rejected';
 
 export type LoadStatus = 'open' | 'assigned' | 'delivered' | 'cancelled';
 

@@ -5,6 +5,7 @@ import { usePwaInstall } from './usePwaInstall';
 import { LANGUAGES, Lang, loadLang, saveLang, STRINGS, Strings } from './i18n';
 import { useVoiceInput } from './useVoiceInput';
 import type {
+  KycReview,
   Load,
   MarketplaceMetrics,
   OperatorEarnings,
@@ -51,7 +52,7 @@ function city(name: string) {
   return { name, ...coords };
 }
 
-type Tab = 'shipper' | 'driver' | 'track' | 'agent' | 'metrics';
+type Tab = 'shipper' | 'driver' | 'track' | 'agent' | 'metrics' | 'kyc';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('shipper');
@@ -159,6 +160,7 @@ export default function App() {
               ['track', t.tabTrack],
               ['agent', t.tabAgent],
               ['metrics', t.tabMetrics],
+              ['kyc', t.tabKyc],
             ] as Array<[Tab, string]>
           ).map(([id, label]) => (
             <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
@@ -173,6 +175,7 @@ export default function App() {
         {tab === 'track' && <TrackPanel t={t} />}
         {tab === 'agent' && <AgentPanel t={t} lang={lang} />}
         {tab === 'metrics' && <MetricsPanel t={t} />}
+        {tab === 'kyc' && <KycPanel t={t} />}
       </main>
     </div>
   );
@@ -930,6 +933,119 @@ function MetricsPanel({ t }: { t: Strings }) {
       {!metrics && !error && busy && <p className="muted">…</p>}
       {error && <p className="muted">{t.metricsAdminNote}</p>}
     </section>
+  );
+}
+
+function KycPanel({ t }: { t: Strings }) {
+  const [queue, setQueue] = useState<KycReview[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      setQueue(await api.getKycQueue());
+    } catch (err) {
+      setQueue(null);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return (
+    <section>
+      <h2>
+        {t.kycHeading}{' '}
+        <button onClick={() => void load()} disabled={busy}>
+          {t.refresh}
+        </button>
+      </h2>
+      <ErrorBox error={error} />
+      {queue && queue.length === 0 && <p className="muted">{t.kycEmpty}</p>}
+      {queue &&
+        queue.map((r) => <KycCard key={r.operatorId} t={t} review={r} onReviewed={() => void load()} />)}
+      {!queue && !error && busy && <p className="muted">…</p>}
+      {error && <p className="muted">{t.metricsAdminNote}</p>}
+    </section>
+  );
+}
+
+function KycCard({
+  t,
+  review,
+  onReviewed,
+}: {
+  t: Strings;
+  review: KycReview;
+  onReviewed: () => void;
+}) {
+  const [license, setLicense] = useState(review.licenseExpiry ?? '');
+  const [insurance, setInsurance] = useState(review.insuranceExpiry ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const statusLabel =
+    review.status === 'valid'
+      ? t.kycValid
+      : review.status === 'expired'
+        ? t.kycExpired
+        : review.status === 'rejected'
+          ? t.kycRejected
+          : t.kycUnverified;
+
+  const submit = async (decision: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.reviewKyc(
+        review.operatorId,
+        decision,
+        license.trim() === '' ? undefined : license.trim(),
+        insurance.trim() === '' ? undefined : insurance.trim(),
+      );
+      onReviewed();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card">
+      <strong>{review.operatorName}</strong> <span className="muted">{review.truckPlate}</span>
+      <div>
+        <em>{statusLabel}</em> <span className="muted">· {review.decision}</span>
+      </div>
+      {review.issues.length > 0 && (
+        <ul>
+          {review.issues.map((issue) => (
+            <li key={issue}>{issue}</li>
+          ))}
+        </ul>
+      )}
+      <label>
+        {t.licenseExpiry}{' '}
+        <input type="date" value={license} onChange={(e) => setLicense(e.target.value)} />
+      </label>{' '}
+      <label>
+        {t.insuranceExpiry}{' '}
+        <input type="date" value={insurance} onChange={(e) => setInsurance(e.target.value)} />
+      </label>{' '}
+      <button onClick={() => void submit('approved')} disabled={busy}>
+        {t.kycApprove}
+      </button>{' '}
+      <button onClick={() => void submit('rejected')} disabled={busy}>
+        {t.kycReject}
+      </button>
+      <ErrorBox error={error} />
+    </div>
   );
 }
 

@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS operators (
   last_drop_off_city JSONB,
   status TEXT NOT NULL,
   license_expiry DATE,
-  insurance_expiry DATE
+  insurance_expiry DATE,
+  kyc_decision TEXT
 );
 CREATE TABLE IF NOT EXISTS loads (
   seq BIGSERIAL,
@@ -145,6 +146,7 @@ function rowToOperator(row: Row): TruckOperator {
     status: str(row.status) as TruckOperator['status'],
     licenseExpiry: dateOf(row.license_expiry),
     insuranceExpiry: dateOf(row.insurance_expiry),
+    kycDecision: row.kyc_decision === null ? undefined : (str(row.kyc_decision) as TruckOperator['kycDecision']),
   };
 }
 
@@ -254,13 +256,14 @@ export class PgRepo implements MarketplaceRepo {
 
   async saveOperator(operator: TruckOperator): Promise<void> {
     await this.pool.query(
-      `INSERT INTO operators (id, name, phone, truck_plate, capacity_tons, current_city, last_drop_off_city, status, license_expiry, insurance_expiry)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO operators (id, name, phone, truck_plate, capacity_tons, current_city, last_drop_off_city, status, license_expiry, insurance_expiry, kyc_decision)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name, phone = EXCLUDED.phone, truck_plate = EXCLUDED.truck_plate,
          capacity_tons = EXCLUDED.capacity_tons, current_city = EXCLUDED.current_city,
          last_drop_off_city = EXCLUDED.last_drop_off_city, status = EXCLUDED.status,
-         license_expiry = EXCLUDED.license_expiry, insurance_expiry = EXCLUDED.insurance_expiry`,
+         license_expiry = EXCLUDED.license_expiry, insurance_expiry = EXCLUDED.insurance_expiry,
+         kyc_decision = EXCLUDED.kyc_decision`,
       [
         operator.id,
         operator.name,
@@ -272,6 +275,7 @@ export class PgRepo implements MarketplaceRepo {
         operator.status,
         operator.licenseExpiry ?? null,
         operator.insuranceExpiry ?? null,
+        operator.kycDecision ?? null,
       ],
     );
   }

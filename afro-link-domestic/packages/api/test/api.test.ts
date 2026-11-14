@@ -302,6 +302,98 @@ describe('marketplace api', async () => {
     await app.close();
   });
 
+  it('admins review the KYC queue and a rejection blocks matching and assignment', async () => {
+    const app = await buildServer();
+    const operatorRes = await app.inject({
+      method: 'POST',
+      url: '/operators',
+      payload: {
+        name: 'Review Trucks',
+        phone: '+251911005544',
+        truckPlate: 'AA-55440',
+        capacityTons: 21,
+        currentCity: addis,
+      },
+    });
+    const operator = operatorRes.json();
+
+    const badDecision = await app.inject({
+      method: 'POST',
+      url: `/operators/${operator.id}/kyc`,
+      payload: { decision: 'maybe' },
+    });
+    expect(badDecision.statusCode).toBe(422);
+
+    const badDate = await app.inject({
+      method: 'POST',
+      url: `/operators/${operator.id}/kyc`,
+      payload: { decision: 'approved', licenseExpiry: 'soon' },
+    });
+    expect(badDate.statusCode).toBe(422);
+
+    const queueRes = await app.inject({ method: 'GET', url: '/admin/kyc' });
+    expect(queueRes.statusCode).toBe(200);
+    const queued = queueRes
+      .json()
+      .find((r: { operatorId: string }) => r.operatorId === operator.id);
+    expect(queued.status).toBe('unverified');
+    expect(queued.decision).toBe('pending');
+
+    const approve = await app.inject({
+      method: 'POST',
+      url: `/operators/${operator.id}/kyc`,
+      payload: {
+        decision: 'approved',
+        licenseExpiry: '2030-01-01',
+        insuranceExpiry: '2030-06-30',
+      },
+    });
+    expect(approve.statusCode).toBe(200);
+    expect(approve.json().kycDecision).toBe('approved');
+
+    const valid = await app.inject({ method: 'GET', url: '/admin/kyc' });
+    const validEntry = valid
+      .json()
+      .find((r: { operatorId: string }) => r.operatorId === operator.id);
+    expect(validEntry.status).toBe('valid');
+    expect(validEntry.licenseExpiry).toBe('2030-01-01');
+
+    const reject = await app.inject({
+      method: 'POST',
+      url: `/operators/${operator.id}/kyc`,
+      payload: { decision: 'rejected' },
+    });
+    expect(reject.statusCode).toBe(200);
+    expect(reject.json().kycDecision).toBe('rejected');
+
+    const loadRes = await app.inject({
+      method: 'POST',
+      url: '/loads',
+      payload: {
+        shipperId: 'shipper-kyc-admin',
+        origin: addis,
+        destination: { name: 'Adama', lat: 8.54, lon: 39.27 },
+        weightTons: 10,
+        offeredPriceEtb: 15000,
+      },
+    });
+    const load = loadRes.json();
+    const matches = await app.inject({ method: 'GET', url: `/loads/${load.id}/matches` });
+    expect(matches.json().map((m: { operatorId: string }) => m.operatorId)).not.toContain(
+      operator.id,
+    );
+
+    const assignRes = await app.inject({
+      method: 'POST',
+      url: '/shipments',
+      payload: { loadId: load.id, operatorId: operator.id },
+    });
+    expect(assignRes.statusCode).toBe(409);
+    expect(assignRes.json().error).toMatch(/KYC was rejected/i);
+
+    await app.close();
+  });
+
   it('blocks proof of delivery on shipments that are not delivered', async () => {
     const app = await buildServer();
     const addis = { name: 'Addis Ababa', lat: 9.03, lon: 38.74 };

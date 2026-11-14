@@ -3,6 +3,7 @@ import type {
   AgentResult,
   City,
   FuelAdvance,
+  KycReview,
   Load,
   MarketplaceMetrics,
   Operator,
@@ -153,6 +154,19 @@ export const api = {
     request<VatInvoice>('/invoices', 'POST', { shipmentId, shipperTin, operatorTin }),
 
   getMetrics: () => request<MarketplaceMetrics>('/metrics', 'GET'),
+
+  getKycQueue: () => request<KycReview[]>('/admin/kyc', 'GET'),
+  reviewKyc: (
+    operatorId: string,
+    decision: string,
+    licenseExpiry?: string,
+    insuranceExpiry?: string,
+  ) =>
+    request<Operator>(`/operators/${operatorId}/kyc`, 'POST', {
+      decision,
+      licenseExpiry,
+      insuranceExpiry,
+    }),
 
   replay: (path: string, body: unknown) => request(path, 'POST', body),
 

@@ -25,6 +25,9 @@ import {
   validateAdvanceRequest,
   ProofOfDelivery,
   kycIssues,
+  kycQueue,
+  KycDecision,
+  KycReview,
   averageRating,
   Rating,
   validateRatingStars,
@@ -144,6 +147,9 @@ export class MarketplaceStore implements AgentStore {
       throw new DomainError('conflict', 'Operator capacity is below load weight.');
     }
     const issues = kycIssues(operator);
+    if (operator.kycDecision === 'rejected') {
+      throw new DomainError('conflict', 'Operator KYC was rejected by an admin.');
+    }
     if (issues.length > 0) {
       throw new DomainError('conflict', `Operator KYC failed: ${issues.join('; ')}.`);
     }
@@ -212,6 +218,27 @@ export class MarketplaceStore implements AgentStore {
     await this.repo.saveLoad(cancelled);
     void this.webhooks?.dispatch('load.cancelled', { load: cancelled, shipments });
     return cancelled;
+  }
+
+  async reviewKyc(input: {
+    operatorId: string;
+    decision: KycDecision;
+    licenseExpiry?: string;
+    insuranceExpiry?: string;
+  }): Promise<TruckOperator> {
+    const operator = await this.getOperator(input.operatorId);
+    const updated: TruckOperator = {
+      ...operator,
+      kycDecision: input.decision,
+      licenseExpiry: input.licenseExpiry ?? operator.licenseExpiry,
+      insuranceExpiry: input.insuranceExpiry ?? operator.insuranceExpiry,
+    };
+    await this.repo.saveOperator(updated);
+    return updated;
+  }
+
+  async kycReviewQueue(): Promise<KycReview[]> {
+    return kycQueue(await this.repo.listOperators());
   }
 
   async suggestLanePrice(input: {

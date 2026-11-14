@@ -24,7 +24,12 @@ export function rankOperatorsForLoad(
   operators: TruckOperator[],
 ): OperatorMatch[] {
   return operators
-    .filter((o) => o.capacityTons >= load.weightTons && kycIssues(o).length === 0)
+    .filter(
+      (o) =>
+        o.capacityTons >= load.weightTons &&
+        o.kycDecision !== 'rejected' &&
+        kycIssues(o).length === 0,
+    )
     .map((o) => {
       const anchor = o.lastDropOffCity ?? o.currentCity;
       const deadheadKm = haversineKm(anchor, load.origin);

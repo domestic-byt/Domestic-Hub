@@ -58,6 +58,48 @@ describe('authenticated api', async () => {
     expect(allowed.json()).toHaveProperty('loads');
   });
 
+  it('restricts the KYC review queue and decisions to admins', async () => {
+    const anonymous = await app.inject({ method: 'GET', url: '/admin/kyc' });
+    expect(anonymous.statusCode).toBe(401);
+
+    const forbidden = await app.inject({ method: 'GET', url: '/admin/kyc', headers: authed('operator') });
+    expect(forbidden.statusCode).toBe(403);
+
+    const allowed = await app.inject({ method: 'GET', url: '/admin/kyc', headers: authed('admin') });
+    expect(allowed.statusCode).toBe(200);
+
+    const operatorRes = await app.inject({
+      method: 'POST',
+      url: '/operators',
+      payload: {
+        name: 'Auth KYC Trucks',
+        phone: '+251911004433',
+        truckPlate: 'AA-44330',
+        capacityTons: 21,
+        currentCity: addis,
+      },
+      headers: authed('admin'),
+    });
+    const operator = operatorRes.json();
+
+    const forbiddenDecision = await app.inject({
+      method: 'POST',
+      url: `/operators/${operator.id}/kyc`,
+      payload: { decision: 'approved' },
+      headers: authed('shipper'),
+    });
+    expect(forbiddenDecision.statusCode).toBe(403);
+
+    const allowedDecision = await app.inject({
+      method: 'POST',
+      url: `/operators/${operator.id}/kyc`,
+      payload: { decision: 'approved', licenseExpiry: '2031-01-01' },
+      headers: authed('admin'),
+    });
+    expect(allowedDecision.statusCode).toBe(200);
+    expect(allowedDecision.json().kycDecision).toBe('approved');
+  });
+
   it('rejects unauthenticated writes with 401', async () => {
     const res = await app.inject({
       method: 'POST',

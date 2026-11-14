@@ -42,6 +42,7 @@ describe.skipIf(!process.env.DATABASE_URL)('pg repo', () => {
       lastDropOffCity: undefined,
       licenseExpiry: '2027-03-01',
       insuranceExpiry: '2028-07-15',
+      kycDecision: 'approved' as const,
     };
     await repo.saveOperator(updated);
     expect(await repo.getOperator(operator.id)).toEqual(updated);

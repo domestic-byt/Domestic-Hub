@@ -12,6 +12,20 @@ export interface Operator {
   capacityTons: number;
   currentCity: City;
   status: 'available' | 'on_trip';
+  licenseExpiry?: string;
+  insuranceExpiry?: string;
+  kycDecision?: 'pending' | 'approved' | 'rejected';
+}
+
+export interface KycReview {
+  operatorId: string;
+  operatorName: string;
+  truckPlate: string;
+  licenseExpiry?: string;
+  insuranceExpiry?: string;
+  decision: 'pending' | 'approved' | 'rejected';
+  status: 'unverified' | 'valid' | 'expired' | 'rejected';
+  issues: string[];
 }
 
 export interface Load {
