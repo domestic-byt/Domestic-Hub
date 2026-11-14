@@ -7,6 +7,7 @@ export async function agentRoutes(app: FastifyInstance, agent: DomesticAgent) {
     if (guard(request, reply, 'shipper', 'operator', 'admin')) return;
     const body = request.body as {
       message?: string;
+      sessionId?: string;
       shipperId?: string;
       operatorId?: string;
       shipperTin?: string;
@@ -17,6 +18,7 @@ export async function agentRoutes(app: FastifyInstance, agent: DomesticAgent) {
     }
     const actor = request.actor;
     return agent.handle(body.message, {
+      sessionKey: body.sessionId ?? actor?.subject,
       shipperId: actor?.role === 'shipper' ? actor.subject : body.shipperId,
       operatorId: actor?.role === 'operator' ? actor.subject : body.operatorId,
       shipperTin: body.shipperTin,

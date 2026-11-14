@@ -251,6 +251,47 @@ describe('DomesticAgent', () => {
     expect(assigned.reply).toMatch(/Shipment \S+ assigned/);
   });
 
+  it('fills missing slots from earlier turns in the same session', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+    await agent.handle('Post 20 tons of coffee from Jimma to Addis Ababa for 40000 birr', {
+      sessionKey: 's1',
+    });
+
+    const followUp = await agent.handle('post another 15 tons load', { sessionKey: 's1' });
+    expect(followUp.intent).toBe('post_load');
+    const load = followUp.data as Load;
+    expect(load.origin.name).toBe('Jimma');
+    expect(load.destination.name).toBe('Addis Ababa');
+    expect(load.weightTons).toBe(15);
+    expect(load.offeredPriceEtb).toBe(40000);
+  });
+
+  it('keeps sessions isolated and remembers the last load per session', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+    const first = await agent.handle('Post 20 tons from Jimma to Addis Ababa for 40000 birr', {
+      sessionKey: 's1',
+    });
+    await agent.handle('Post 10 tons from Adama to Mekelle for 25000 birr', { sessionKey: 's2' });
+
+    const matches = await agent.handle('find trucks', { sessionKey: 's1' });
+    expect(matches.reply).toContain((first.data as Load).id);
+  });
+
+  it('assigns the remembered load when no id is given', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+    const posted = await agent.handle('Post 20 tons from Jimma to Addis Ababa for 40000 birr', {
+      sessionKey: 's1',
+    });
+    const loadId = (posted.data as Load).id;
+
+    const assigned = await agent.handle('assign the top match', { sessionKey: 's1' });
+    expect(assigned.intent).toBe('assign_truck');
+    expect((assigned.data as Shipment).loadId).toBe(loadId);
+  });
+
   it('suggests return loads near the truck after a drop-off', async () => {
     const store = seededStore();
     const agent = new DomesticAgent(store);

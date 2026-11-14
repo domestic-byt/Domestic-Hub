@@ -1,5 +1,6 @@
 import { DomainError } from '@afro-link/shared';
 import { detectIntent } from './intent';
+import { AgentMemory, AgentMemoryState, InMemoryAgentMemory } from './memory';
 import { extractSlots } from './slots';
 import {
   AgentContext,
@@ -25,11 +26,15 @@ export class DomesticAgent {
   constructor(
     private readonly store: AgentStore,
     private readonly llm?: LlmAdapter,
+    private readonly memory: AgentMemory = new InMemoryAgentMemory(),
   ) {}
 
   async handle(message: string, ctx: AgentContext = {}): Promise<AgentResult> {
     const intent = detectIntent(message);
-    const outcome = await this.execute(intent, message, ctx);
+    const sessionKey = ctx.sessionKey ?? ctx.shipperId ?? ctx.operatorId ?? 'guest';
+    const memory = (await this.memory.get(sessionKey)) ?? {};
+    const outcome = await this.execute(intent, message, ctx, memory);
+    await this.memory.set(sessionKey, memory);
     let reply = outcome.reply;
     if (this.llm) {
       try {
@@ -48,23 +53,24 @@ export class DomesticAgent {
     intent: AgentIntent,
     message: string,
     ctx: AgentContext,
+    memory: AgentMemoryState,
   ): Promise<{ reply: string; data?: unknown }> {
     try {
       switch (intent) {
         case 'post_load':
-          return await this.postLoad(message, ctx);
+          return await this.postLoad(message, ctx, memory);
         case 'find_matches':
-          return await this.findMatches(message);
+          return await this.findMatches(message, memory);
         case 'find_return_loads':
-          return await this.findReturnLoads(message, ctx);
+          return await this.findReturnLoads(message, ctx, memory);
         case 'assign_truck':
-          return await this.assignTruck(message);
+          return await this.assignTruck(message, memory);
         case 'request_advance':
-          return await this.requestAdvance(message, ctx);
+          return await this.requestAdvance(message, ctx, memory);
         case 'track_shipment':
-          return await this.trackShipment(message);
+          return await this.trackShipment(message, memory);
         case 'create_invoice':
-          return await this.createInvoice(message, ctx);
+          return await this.createInvoice(message, ctx, memory);
         case 'help':
           return { reply: HELP_TEXT };
         default:
@@ -78,10 +84,16 @@ export class DomesticAgent {
     }
   }
 
-  private async postLoad(message: string, ctx: AgentContext) {
+  private async postLoad(message: string, ctx: AgentContext, memory: AgentMemoryState) {
     const slots = extractSlots(message);
     const [origin, destination] = slots.cities;
-    if (!origin || !destination || !slots.weightTons || !slots.moneyEtb) {
+    const merged = {
+      origin: origin ?? memory.lastOrigin,
+      destination: destination ?? memory.lastDestination,
+      weightTons: slots.weightTons ?? memory.lastWeightTons,
+      moneyEtb: slots.moneyEtb ?? memory.lastMoneyEtb,
+    };
+    if (!merged.origin || !merged.destination || !merged.weightTons || !merged.moneyEtb) {
       return {
         reply:
           'I can post that load. Please include origin, destination, weight in tons and price in birr — e.g. "Post 20 tons of coffee from Jimma to Addis Ababa for 40000 birr".',
@@ -89,26 +101,32 @@ export class DomesticAgent {
     }
     const load = await this.store.createLoad({
       shipperId: ctx.shipperId ?? 'guest',
-      origin,
-      destination,
-      weightTons: slots.weightTons,
-      offeredPriceEtb: slots.moneyEtb,
+      origin: merged.origin,
+      destination: merged.destination,
+      weightTons: merged.weightTons,
+      offeredPriceEtb: merged.moneyEtb,
     });
+    memory.lastLoadId = load.id;
+    memory.lastOrigin = merged.origin;
+    memory.lastDestination = merged.destination;
+    memory.lastWeightTons = merged.weightTons;
+    memory.lastMoneyEtb = merged.moneyEtb;
     return {
       reply: `Load ${load.id} posted: ${load.weightTons} t from ${load.origin.name} to ${load.destination.name} at ${load.offeredPriceEtb} ETB. Say "find trucks for ${load.id}" to see ranked carriers.`,
       data: load,
     };
   }
 
-  private async findMatches(message: string) {
+  private async findMatches(message: string, memory: AgentMemoryState) {
     const slots = extractSlots(message);
-    const loadId = slots.ids[0] ?? (await this.store.findLatestLoad())?.id;
+    const loadId = slots.ids[0] ?? memory.lastLoadId ?? (await this.store.findLatestLoad())?.id;
     if (!loadId) {
       return {
         reply:
           'Which load? Share the load id, or post one first — e.g. "Post 20 tons from Jimma to Addis Ababa for 40000 birr".',
       };
     }
+    memory.lastLoadId = loadId;
     const matches = await this.store.rankMatches(loadId);
     if (matches.length === 0) {
       return {
@@ -129,11 +147,12 @@ export class DomesticAgent {
     };
   }
 
-  private async findReturnLoads(message: string, ctx: AgentContext) {
+  private async findReturnLoads(message: string, ctx: AgentContext, memory: AgentMemoryState) {
     const slots = extractSlots(message);
     const operatorId =
       slots.ids[0] ??
       ctx.operatorId ??
+      memory.lastOperatorId ??
       (await this.store.findLatestShipment())?.operatorId;
     if (!operatorId) {
       return {
@@ -162,9 +181,9 @@ export class DomesticAgent {
     };
   }
 
-  private async assignTruck(message: string) {
+  private async assignTruck(message: string, memory: AgentMemoryState) {
     const slots = extractSlots(message);
-    const loadId = slots.ids[0] ?? (await this.store.findLatestLoad())?.id;
+    const loadId = slots.ids[0] ?? memory.lastLoadId ?? (await this.store.findLatestLoad())?.id;
     if (!loadId) {
       return {
         reply:
@@ -177,17 +196,22 @@ export class DomesticAgent {
       return { reply: `No available trucks for load ${loadId}.` };
     }
     const shipment = await this.store.assignShipment(loadId, operatorId);
+    memory.lastLoadId = loadId;
+    memory.lastShipmentId = shipment.id;
+    memory.lastOperatorId = operatorId;
     return {
       reply: `Shipment ${shipment.id} assigned: load ${loadId} → operator ${operatorId}. The driver can now request a fuel advance, e.g. "request an 8000 birr telebirr advance".`,
       data: shipment,
     };
   }
 
-  private async requestAdvance(message: string, ctx: AgentContext) {
+  private async requestAdvance(message: string, ctx: AgentContext, memory: AgentMemoryState) {
     const slots = extractSlots(message);
     const shipment = slots.ids[0]
       ? await this.store.findShipment(slots.ids[0])
-      : await this.store.findLatestShipment();
+      : memory.lastShipmentId
+        ? await this.store.findShipment(memory.lastShipmentId)
+        : await this.store.findLatestShipment();
     if (!shipment) {
       return {
         reply: 'Which shipment is the advance for? Share the shipment id.',
@@ -203,19 +227,25 @@ export class DomesticAgent {
       operatorId: ctx.operatorId ?? shipment.operatorId,
       shipmentId: shipment.id,
       amountEtb: slots.moneyEtb,
-      channel: slots.channel ?? 'telebirr',
+      channel: slots.channel ?? memory.lastChannel ?? 'telebirr',
     });
+    memory.lastShipmentId = shipment.id;
+    memory.lastOperatorId = advance.operatorId;
+    memory.lastMoneyEtb = slots.moneyEtb;
+    memory.lastChannel = advance.channel;
     return {
       reply: `Fuel advance of ${advance.amountEtb} ETB requested via ${advance.channel} (status: ${advance.status}). It needs approval before disbursement.`,
       data: advance,
     };
   }
 
-  private async trackShipment(message: string) {
+  private async trackShipment(message: string, memory: AgentMemoryState) {
     const slots = extractSlots(message);
     const shipment = slots.ids[0]
       ? await this.store.findShipment(slots.ids[0])
-      : await this.store.findLatestShipment();
+      : memory.lastShipmentId
+        ? await this.store.findShipment(memory.lastShipmentId)
+        : await this.store.findLatestShipment();
     if (!shipment) {
       return {
         reply: 'Which shipment? Share the shipment id, or assign a load first.',
@@ -240,11 +270,13 @@ export class DomesticAgent {
     };
   }
 
-  private async createInvoice(message: string, ctx: AgentContext) {
+  private async createInvoice(message: string, ctx: AgentContext, memory: AgentMemoryState) {
     const slots = extractSlots(message);
     const shipment = slots.ids[0]
       ? await this.store.findShipment(slots.ids[0])
-      : await this.store.findLatestShipment();
+      : memory.lastShipmentId
+        ? await this.store.findShipment(memory.lastShipmentId)
+        : await this.store.findLatestShipment();
     if (!shipment) {
       return {
         reply: 'Which shipment should I invoice? Share the shipment id.',
@@ -255,6 +287,7 @@ export class DomesticAgent {
       shipperTin: ctx.shipperTin ?? 'PENDING',
       operatorTin: ctx.operatorTin ?? 'PENDING',
     });
+    memory.lastShipmentId = shipment.id;
     return {
       reply: `VAT invoice ${invoice.id}: subtotal ${invoice.subtotalEtb} ETB + VAT ${invoice.vatEtb} ETB = ${invoice.totalEtb} ETB.`,
       data: invoice,

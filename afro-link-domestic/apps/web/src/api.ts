@@ -36,6 +36,18 @@ export function apiUrl(path: string): string {
   return `${API_BASE}${path}`;
 }
 
+const SESSION_KEY = 'afrolink.session';
+
+export function getSessionId(): string {
+  if (typeof localStorage === 'undefined') return 'server';
+  let id = localStorage.getItem(SESSION_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(SESSION_KEY, id);
+  }
+  return id;
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -108,5 +120,9 @@ export const api = {
     request<VatInvoice>('/invoices', 'POST', { shipmentId, shipperTin, operatorTin }),
 
   chat: (message: string, ctx: { shipperId?: string; operatorId?: string } = {}) =>
-    request<AgentResult>('/agent/chat', 'POST', { message, ...ctx }),
+    request<AgentResult>('/agent/chat', 'POST', {
+      message,
+      sessionId: getSessionId(),
+      ...ctx,
+    }),
 };

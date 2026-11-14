@@ -410,6 +410,37 @@ describe('domestic ai agent endpoint', async () => {
     expect(advanceRes.json().reply).toContain('telebirr');
   });
 
+  it('remembers each conversation session separately', async () => {
+    const first = await app.inject({
+      method: 'POST',
+      url: '/agent/chat',
+      payload: {
+        message: 'Post 20 tons from Jimma to Addis Ababa for 40000 birr',
+        shipperId: 'shipper-1',
+        sessionId: 'session-a',
+      },
+    });
+    const firstLoadId = first.json().data.id as string;
+
+    await app.inject({
+      method: 'POST',
+      url: '/agent/chat',
+      payload: {
+        message: 'Post 10 tons from Adama to Mekelle for 25000 birr',
+        shipperId: 'shipper-2',
+        sessionId: 'session-b',
+      },
+    });
+
+    const followUp = await app.inject({
+      method: 'POST',
+      url: '/agent/chat',
+      payload: { message: 'find trucks', sessionId: 'session-a' },
+    });
+    expect(followUp.statusCode).toBe(200);
+    expect(followUp.json().reply).toContain(firstLoadId);
+  });
+
   it('answers unknown messages with help', async () => {
     const res = await app.inject({
       method: 'POST',

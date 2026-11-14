@@ -62,6 +62,7 @@ export type AgentIntent =
   | 'unknown';
 
 export interface AgentContext {
+  sessionKey?: string;
   shipperId?: string;
   operatorId?: string;
   shipperTin?: string;
