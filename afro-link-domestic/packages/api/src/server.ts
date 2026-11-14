@@ -5,6 +5,7 @@ import { DomesticAgent, LlmAdapter, MistralLlmAdapter } from '@afro-link/agent';
 import { InMemoryRepo, MarketplaceRepo } from './repo';
 import { PgRepo } from './repo-pg';
 import { MarketplaceStore } from './store';
+import { payoutAdaptersFromEnv } from './payouts-live';
 import { loadRoutes, operatorRoutes } from './routes/loads';
 import { shipmentRoutes } from './routes/shipments';
 import { advanceRoutes } from './routes/advances';
@@ -46,7 +47,7 @@ export async function buildServer(options?: {
 }): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
   const repo = await resolveRepo(options?.repo);
-  const store = new MarketplaceStore(repo, options?.payouts);
+  const store = new MarketplaceStore(repo, options?.payouts ?? payoutAdaptersFromEnv());
   const auth =
     options?.auth ??
     (process.env.AUTH_SECRET ? { secret: process.env.AUTH_SECRET } : undefined);

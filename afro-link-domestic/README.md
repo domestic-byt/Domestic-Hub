@@ -81,9 +81,17 @@ AUTH_SECRET=dev-secret npx tsx afro-link-domestic/scripts/mint-token.ts shipper 
 
 Paste the token into the web dashboard's SSO token field (stored in `localStorage`) to act as that role.
 
+## Payout gateways (Telebirr / CBE Birr)
+
+Fuel advances settle through the `PayoutAdapter` interface. `payoutAdaptersFromEnv()` picks adapters per channel:
+
+- **Simulated** (default) — instant `TB-SIM-*` / `CBE-SIM-*` references, no network.
+- **Telebirr live** — when `TELEBIRR_APP_ID` + `TELEBIRR_APP_KEY` are set. Posts signed (HMAC-SHA256) requests to the Telebirr SuperApp payment gateway (`TELEBIRR_BASE_URL` overrides the default host, `TELEBIRR_SHORT_CODE` optional). Disburse uses the B2C endpoint, recovery the collection endpoint.
+- **CBE Birr live** — when `CBE_BIRR_CLIENT_ID` + `CBE_BIRR_CLIENT_SECRET` + `CBE_BIRR_BASE_URL` are set (base URL required because CBE exposes contract-specific endpoints per merchant agreement).
+
+Live gateways enforce a 15s timeout (`*_TIMEOUT_MS` to override), map HTTP/network failures to failed payouts (which blocks the advance transition and preserves its status), and surface the gateway's transaction reference as `TB-*` / `CBE-*`. Verify the exact endpoint paths and payload fields against the merchant contract with Ethio Telecom / CBE before production — they are isolated in `packages/api/src/payouts-live.ts`.
+
 ## Roadmap
 
-- `apps/web` — shipper dashboard and driver app (Amharic/English).
-- Real Telebirr (SuperApp API) / CBE Birr gateway credentials behind the existing `PayoutAdapter` interface.
-- Voice input for the Domestic AI Agent.
-- Auth via DomesticHub SSO.
+- `apps/web` — driver app polish (Amharic/English) and voice input for the Domestic AI Agent.
+- Activate live Telebirr / CBE Birr gateway credentials (adapter code is ready; see Payout gateways above).
