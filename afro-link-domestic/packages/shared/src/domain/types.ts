@@ -18,9 +18,22 @@ export interface TruckOperator {
   licenseExpiry?: string;
   insuranceExpiry?: string;
   kycDecision?: KycDecision;
+  licenseNumber?: string;
+  licenseDocUrl?: string;
+  insuranceDocUrl?: string;
 }
 
 export type KycDecision = 'pending' | 'approved' | 'rejected';
+
+export interface AuditEntry {
+  id: string;
+  at: string;
+  actorId: string;
+  actorRole: 'shipper' | 'operator' | 'admin' | 'anonymous';
+  action: string;
+  target: string;
+  detail?: string;
+}
 
 export type LoadStatus = 'open' | 'assigned' | 'delivered' | 'cancelled';
 

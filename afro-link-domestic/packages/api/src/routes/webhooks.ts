@@ -4,6 +4,7 @@ import { MarketplaceRepo } from '../repo';
 import { guard } from '../auth';
 import { run } from './loads';
 import { WebhookDispatcher } from '../webhooks';
+import { recordAudit } from '../audit';
 
 const VALID_EVENTS: WebhookEvent[] = [
   'shipment.assigned',
@@ -67,6 +68,7 @@ export async function webhookRoutes(
   app.delete('/webhooks/:id', async (request, reply) => {
     if (guard(request, reply, 'admin')) return;
     const { id } = request.params as { id: string };
+    await recordAudit(repo, request, 'webhook.delete', id);
     return run(reply, async () => {
       const hooks = await repo.listWebhooks();
       if (!hooks.some((h) => h.id === id)) {
@@ -92,6 +94,7 @@ export async function webhookRoutes(
   app.post('/webhooks/deliveries/:id/retry', async (request, reply) => {
     if (guard(request, reply, 'admin')) return;
     const { id } = request.params as { id: string };
+    await recordAudit(repo, request, 'webhook.delivery_retry', id);
     return run(reply, () => dispatcher.retry(id));
   });
 }

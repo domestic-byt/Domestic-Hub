@@ -58,6 +58,18 @@ describe('authenticated api', async () => {
     expect(allowed.json()).toHaveProperty('loads');
   });
 
+  it('restricts the audit log to admins', async () => {
+    const anonymous = await app.inject({ method: 'GET', url: '/admin/audit' });
+    expect(anonymous.statusCode).toBe(401);
+
+    const forbidden = await app.inject({ method: 'GET', url: '/admin/audit', headers: authed('shipper') });
+    expect(forbidden.statusCode).toBe(403);
+
+    const allowed = await app.inject({ method: 'GET', url: '/admin/audit', headers: authed('admin') });
+    expect(allowed.statusCode).toBe(200);
+    expect(Array.isArray(allowed.json())).toBe(true);
+  });
+
   it('restricts the KYC review queue and decisions to admins', async () => {
     const anonymous = await app.inject({ method: 'GET', url: '/admin/kyc' });
     expect(anonymous.statusCode).toBe(401);

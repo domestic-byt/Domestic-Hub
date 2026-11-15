@@ -12,7 +12,7 @@ describe.skipIf(!process.env.DATABASE_URL)('pg repo', () => {
     repo = await PgRepo.connect(process.env.DATABASE_URL!);
     const cleaner = new Pool({ connectionString: process.env.DATABASE_URL });
     await cleaner.query(
-      'TRUNCATE operators, loads, shipments, tracking_events, fuel_advances, invoices, webhooks, ratings, webhook_deliveries',
+      'TRUNCATE operators, loads, shipments, tracking_events, fuel_advances, invoices, webhooks, ratings, webhook_deliveries, audit_log',
     );
     await cleaner.end();
   });
@@ -43,6 +43,9 @@ describe.skipIf(!process.env.DATABASE_URL)('pg repo', () => {
       licenseExpiry: '2027-03-01',
       insuranceExpiry: '2028-07-15',
       kycDecision: 'approved' as const,
+      licenseNumber: 'DL-998877',
+      licenseDocUrl: 'https://docs.example/license.pdf',
+      insuranceDocUrl: 'https://docs.example/insurance.pdf',
     };
     await repo.saveOperator(updated);
     expect(await repo.getOperator(operator.id)).toEqual(updated);
@@ -240,6 +243,34 @@ describe.skipIf(!process.env.DATABASE_URL)('pg repo', () => {
     const list = await repo.listDeliveries(base.webhookId);
     expect(list.map((d) => d.id)).toEqual([second.id, failed.id]);
     expect(await repo.listDeliveries(`wh-other-${crypto.randomUUID()}`)).toEqual([]);
+  });
+
+  it('stores audit entries newest first', async () => {
+    const first = {
+      id: `aud-${crypto.randomUUID()}`,
+      at: new Date().toISOString(),
+      actorId: 'admin-1',
+      actorRole: 'admin' as const,
+      action: 'kyc.review',
+      target: 'op-1',
+      detail: 'approved',
+    };
+    await repo.saveAuditEntry(first);
+    const second = {
+      id: `aud-${crypto.randomUUID()}`,
+      at: new Date().toISOString(),
+      actorId: 'anonymous',
+      actorRole: 'anonymous' as const,
+      action: 'webhook.delete',
+      target: 'wh-1',
+    };
+    await repo.saveAuditEntry(second);
+    const list = await repo.listAuditEntries(10);
+    expect(list[0]!.id).toBe(second.id);
+    expect(list.find((e) => e.id === first.id)).toMatchObject({
+      action: 'kyc.review',
+      detail: 'approved',
+    });
   });
 
   it('stores VAT invoices', async () => {

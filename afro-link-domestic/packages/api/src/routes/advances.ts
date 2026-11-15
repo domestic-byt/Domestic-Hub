@@ -3,6 +3,7 @@ import { AdvanceAction, AdvanceChannel } from '@afro-link/shared';
 import { MarketplaceStore } from '../store';
 import { guard } from '../auth';
 import { run } from './loads';
+import { recordAudit } from '../audit';
 
 const CHANNELS: AdvanceChannel[] = ['telebirr', 'cbe_birr'];
 const ACTIONS: AdvanceAction[] = ['approve', 'reject', 'disburse', 'recover', 'default'];
@@ -52,6 +53,7 @@ export async function advanceRoutes(app: FastifyInstance, store: MarketplaceStor
   app.post('/advances/:id/retry-payout', async (request, reply) => {
     if (guard(request, reply, 'admin')) return;
     const { id } = request.params as { id: string };
+    await recordAudit(store, request, 'advance.retry_payout', id);
     return run(reply, () => store.retryPayout(id));
   });
 }

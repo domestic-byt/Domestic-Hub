@@ -34,6 +34,7 @@ import {
   averageRating,
   Rating,
   validateRatingStars,
+  AuditEntry,
 } from '@afro-link/shared';
 import type {
   AgentStore,
@@ -240,6 +241,38 @@ export class MarketplaceStore implements AgentStore {
     };
     await this.repo.saveOperator(updated);
     return updated;
+  }
+
+  async submitKycDocuments(
+    operatorId: string,
+    input: {
+      licenseNumber?: string;
+      licenseExpiry?: string;
+      insuranceExpiry?: string;
+      licenseDocUrl?: string;
+      insuranceDocUrl?: string;
+    },
+  ): Promise<TruckOperator> {
+    const operator = await this.getOperator(operatorId);
+    const updated: TruckOperator = {
+      ...operator,
+      licenseNumber: input.licenseNumber ?? operator.licenseNumber,
+      licenseExpiry: input.licenseExpiry ?? operator.licenseExpiry,
+      insuranceExpiry: input.insuranceExpiry ?? operator.insuranceExpiry,
+      licenseDocUrl: input.licenseDocUrl ?? operator.licenseDocUrl,
+      insuranceDocUrl: input.insuranceDocUrl ?? operator.insuranceDocUrl,
+      kycDecision: 'pending',
+    };
+    await this.repo.saveOperator(updated);
+    return updated;
+  }
+
+  async saveAuditEntry(entry: AuditEntry): Promise<void> {
+    await this.repo.saveAuditEntry(entry);
+  }
+
+  async listAuditEntries(limit = 100): Promise<AuditEntry[]> {
+    return this.repo.listAuditEntries(limit);
   }
 
   async kycReviewQueue(): Promise<KycReview[]> {

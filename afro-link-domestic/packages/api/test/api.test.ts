@@ -1057,6 +1057,119 @@ describe('domestic ai agent endpoint', async () => {
     expect(res.json().reply).toContain('Domestic AI Agent');
   });
 
+  it('accepts operator KYC document submissions and resets the decision to pending', async () => {
+    const app = await buildServer();
+    const operator = (
+      await app.inject({
+        method: 'POST',
+        url: '/operators',
+        payload: {
+          name: 'Docs Trucks',
+          phone: '+251911777666',
+          truckPlate: 'AA-77660',
+          capacityTons: 21,
+          currentCity: addis,
+        },
+      })
+    ).json();
+
+    await app.inject({
+      method: 'POST',
+      url: `/operators/${operator.id}/kyc`,
+      payload: { decision: 'approved', licenseExpiry: '2030-01-01' },
+    });
+
+    const badUrl = await app.inject({
+      method: 'POST',
+      url: `/operators/${operator.id}/kyc/documents`,
+      payload: { licenseDocUrl: 'ftp://docs.example/license' },
+    });
+    expect(badUrl.statusCode).toBe(422);
+    expect(badUrl.json().errors[0]).toMatch(/http\(s\) URL/);
+
+    const badDate = await app.inject({
+      method: 'POST',
+      url: `/operators/${operator.id}/kyc/documents`,
+      payload: { insuranceExpiry: 'next month' },
+    });
+    expect(badDate.statusCode).toBe(422);
+
+    const submitted = await app.inject({
+      method: 'POST',
+      url: `/operators/${operator.id}/kyc/documents`,
+      payload: {
+        licenseNumber: 'DL-112233',
+        licenseExpiry: '2031-05-01',
+        insuranceExpiry: '2031-08-01',
+        licenseDocUrl: 'https://docs.example/license-112233.pdf',
+        insuranceDocUrl: 'https://docs.example/insurance-112233.pdf',
+      },
+    });
+    expect(submitted.statusCode).toBe(200);
+    expect(submitted.json().kycDecision).toBe('pending');
+    expect(submitted.json().licenseNumber).toBe('DL-112233');
+    expect(submitted.json().licenseDocUrl).toBe('https://docs.example/license-112233.pdf');
+
+    const queue = await app.inject({ method: 'GET', url: '/admin/kyc' });
+    const entry = queue
+      .json()
+      .find((r: { operatorId: string }) => r.operatorId === operator.id);
+    expect(entry.status).toBe('valid');
+    expect(entry.decision).toBe('pending');
+
+    await app.close();
+  });
+
+  it('records admin actions in the audit log', async () => {
+    const app = await buildServer();
+    const operator = (
+      await app.inject({
+        method: 'POST',
+        url: '/operators',
+        payload: {
+          name: 'Audit Trucks',
+          phone: '+251911888777',
+          truckPlate: 'AA-88770',
+          capacityTons: 21,
+          currentCity: addis,
+        },
+      })
+    ).json();
+
+    const hook = (
+      await app.inject({
+        method: 'POST',
+        url: '/webhooks',
+        payload: { url: 'https://hooks.example/audit', events: [] },
+      })
+    ).json();
+    await app.inject({ method: 'DELETE', url: `/webhooks/${hook.id}` });
+
+    await app.inject({
+      method: 'POST',
+      url: `/operators/${operator.id}/kyc`,
+      payload: { decision: 'approved' },
+    });
+
+    const log = await app.inject({ method: 'GET', url: '/admin/audit' });
+    expect(log.statusCode).toBe(200);
+    const entries = log.json();
+    const deleteEntry = entries.find(
+      (e: { action: string; target: string }) =>
+        e.action === 'webhook.delete' && e.target === hook.id,
+    );
+    expect(deleteEntry).toBeTruthy();
+    expect(deleteEntry.actorRole).toBe('anonymous');
+    const kycEntry = entries.find(
+      (e: { action: string; target: string; detail?: string }) =>
+        e.action === 'kyc.review' && e.target === operator.id,
+    );
+    expect(kycEntry).toBeTruthy();
+    expect(kycEntry.detail).toBe('approved');
+
+    await app.close();
+  });
+
   it('gates agent KYC review behind the admin flag', async () => {
     const denied = await app.inject({
       method: 'POST',

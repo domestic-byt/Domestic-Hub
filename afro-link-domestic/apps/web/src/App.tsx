@@ -5,6 +5,7 @@ import { usePwaInstall } from './usePwaInstall';
 import { LANGUAGES, Lang, loadLang, saveLang, STRINGS, Strings } from './i18n';
 import { useVoiceInput } from './useVoiceInput';
 import type {
+  AuditEntry,
   KycReview,
   Load,
   MarketplaceMetrics,
@@ -472,6 +473,15 @@ function DriverPanel({ t }: { t: Strings }) {
   const [earnings, setEarnings] = useState<OperatorEarnings | null>(null);
   const [podForm, setPodForm] = useState({ shipmentId: '', receiverName: '', note: '' });
   const [podSaved, setPodSaved] = useState(false);
+  const [docsForm, setDocsForm] = useState({
+    operatorId: '',
+    licenseNumber: '',
+    licenseExpiry: '',
+    insuranceExpiry: '',
+    licenseDocUrl: '',
+    insuranceDocUrl: '',
+  });
+  const [docsSaved, setDocsSaved] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -573,6 +583,25 @@ function DriverPanel({ t }: { t: Strings }) {
     setError(null);
     try {
       await api.retryPayout(advanceId);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function submitDocs(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setDocsSaved(false);
+    try {
+      await api.submitKycDocuments(docsForm.operatorId.trim(), {
+        ...(docsForm.licenseNumber ? { licenseNumber: docsForm.licenseNumber.trim() } : {}),
+        ...(docsForm.licenseExpiry ? { licenseExpiry: docsForm.licenseExpiry } : {}),
+        ...(docsForm.insuranceExpiry ? { insuranceExpiry: docsForm.insuranceExpiry } : {}),
+        ...(docsForm.licenseDocUrl ? { licenseDocUrl: docsForm.licenseDocUrl.trim() } : {}),
+        ...(docsForm.insuranceDocUrl ? { insuranceDocUrl: docsForm.insuranceDocUrl.trim() } : {}),
+      });
+      setDocsSaved(true);
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -745,6 +774,61 @@ function DriverPanel({ t }: { t: Strings }) {
           </em>
         </div>
       )}
+
+      <h2>{t.kycDocsHeading}</h2>
+      <form
+        onSubmit={submitDocs}
+        className="card row"
+      >
+        <label>
+          {t.operatorId}
+          <input
+            value={docsForm.operatorId}
+            onChange={(e) => setDocsForm({ ...docsForm, operatorId: e.target.value })}
+          />
+        </label>
+        <label>
+          {t.kycLicenseNumber}
+          <input
+            value={docsForm.licenseNumber}
+            onChange={(e) => setDocsForm({ ...docsForm, licenseNumber: e.target.value })}
+          />
+        </label>
+        <label>
+          {t.licenseExpiry}
+          <input
+            type="date"
+            value={docsForm.licenseExpiry}
+            onChange={(e) => setDocsForm({ ...docsForm, licenseExpiry: e.target.value })}
+          />
+        </label>
+        <label>
+          {t.insuranceExpiry}
+          <input
+            type="date"
+            value={docsForm.insuranceExpiry}
+            onChange={(e) => setDocsForm({ ...docsForm, insuranceExpiry: e.target.value })}
+          />
+        </label>
+        <label>
+          {t.kycDocUrl}
+          <input
+            value={docsForm.licenseDocUrl}
+            onChange={(e) => setDocsForm({ ...docsForm, licenseDocUrl: e.target.value })}
+          />
+        </label>
+        <label>
+          {t.kycInsuranceDocUrl}
+          <input
+            value={docsForm.insuranceDocUrl}
+            onChange={(e) => setDocsForm({ ...docsForm, insuranceDocUrl: e.target.value })}
+          />
+        </label>
+        <button type="submit" disabled={!docsForm.operatorId}>
+          {t.kycSubmitDocs}
+        </button>
+      </form>
+      {docsSaved && <p className="auth-ok">{t.kycDocsSaved}</p>}
 
       <h2>{t.podHeading}</h2>
       <form onSubmit={capture} className="card row">
@@ -938,6 +1022,7 @@ function MetricsPanel({ t }: { t: Strings }) {
 
 function KycPanel({ t }: { t: Strings }) {
   const [queue, setQueue] = useState<KycReview[] | null>(null);
+  const [audit, setAudit] = useState<AuditEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -946,6 +1031,7 @@ function KycPanel({ t }: { t: Strings }) {
     setBusy(true);
     try {
       setQueue(await api.getKycQueue());
+      setAudit(await api.getAuditLog());
     } catch (err) {
       setQueue(null);
       setError(err instanceof Error ? err.message : String(err));
@@ -972,6 +1058,19 @@ function KycPanel({ t }: { t: Strings }) {
         queue.map((r) => <KycCard key={r.operatorId} t={t} review={r} onReviewed={() => void load()} />)}
       {!queue && !error && busy && <p className="muted">…</p>}
       {error && <p className="muted">{t.metricsAdminNote}</p>}
+      <h2>{t.auditHeading}</h2>
+      {audit && audit.length === 0 && <p className="muted">…</p>}
+      {audit &&
+        audit.slice(0, 20).map((entry) => (
+          <div className="card" key={entry.id}>
+            <strong>{entry.action}</strong>{' '}
+            <span className="muted">
+              {entry.actorRole}:{entry.actorId} · {entry.target}
+              {entry.detail ? ` · ${entry.detail}` : ''} ·{' '}
+              {new Date(entry.at).toLocaleString()}
+            </span>
+          </div>
+        ))}
     </section>
   );
 }

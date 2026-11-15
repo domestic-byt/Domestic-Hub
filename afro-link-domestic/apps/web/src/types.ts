@@ -15,6 +15,19 @@ export interface Operator {
   licenseExpiry?: string;
   insuranceExpiry?: string;
   kycDecision?: 'pending' | 'approved' | 'rejected';
+  licenseNumber?: string;
+  licenseDocUrl?: string;
+  insuranceDocUrl?: string;
+}
+
+export interface AuditEntry {
+  id: string;
+  at: string;
+  actorId: string;
+  actorRole: 'shipper' | 'operator' | 'admin' | 'anonymous';
+  action: string;
+  target: string;
+  detail?: string;
 }
 
 export interface KycReview {

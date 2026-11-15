@@ -8,6 +8,7 @@ import {
   VatInvoice,
   Webhook,
   WebhookDelivery,
+  AuditEntry,
 } from '@afro-link/shared';
 
 export interface MarketplaceRepo {
@@ -39,6 +40,8 @@ export interface MarketplaceRepo {
   saveDelivery(delivery: WebhookDelivery): Promise<void>;
   getDelivery(id: string): Promise<WebhookDelivery | undefined>;
   listDeliveries(webhookId?: string, limit?: number): Promise<WebhookDelivery[]>;
+  saveAuditEntry(entry: AuditEntry): Promise<void>;
+  listAuditEntries(limit?: number): Promise<AuditEntry[]>;
   saveRating(rating: Rating): Promise<void>;
   ratingByShipment(shipmentId: string): Promise<Rating | undefined>;
   ratingsForOperator(operatorId: string): Promise<Rating[]>;
@@ -190,5 +193,15 @@ export class InMemoryRepo implements MarketplaceRepo {
       .filter((d) => webhookId === undefined || d.webhookId === webhookId)
       .slice(-limit)
       .reverse();
+  }
+
+  audit: AuditEntry[] = [];
+
+  async saveAuditEntry(entry: AuditEntry): Promise<void> {
+    this.audit.push(entry);
+  }
+
+  async listAuditEntries(limit = 100): Promise<AuditEntry[]> {
+    return this.audit.slice(-limit).reverse();
   }
 }

@@ -3,6 +3,7 @@ import { KycDecision } from '@afro-link/shared';
 import { MarketplaceStore } from '../store';
 import { guard } from '../auth';
 import { run } from './loads';
+import { recordAudit } from '../audit';
 
 const KYC_DECISIONS: KycDecision[] = ['pending', 'approved', 'rejected'];
 
@@ -40,6 +41,7 @@ export async function adminRoutes(app: FastifyInstance, store: MarketplaceStore)
     if (errors.length > 0) {
       return reply.code(422).send({ errors });
     }
+    await recordAudit(store, request, 'kyc.review', id, String(body.decision));
     return run(
       reply,
       () =>
@@ -52,5 +54,10 @@ export async function adminRoutes(app: FastifyInstance, store: MarketplaceStore)
         }),
       200,
     );
+  });
+
+  app.get('/admin/audit', async (request, reply) => {
+    if (guard(request, reply, 'admin')) return;
+    return run(reply, () => store.listAuditEntries());
   });
 }

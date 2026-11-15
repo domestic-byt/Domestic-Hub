@@ -43,6 +43,8 @@ The web app reads `VITE_API_BASE` at build time (defaults to `/api`, proxied in 
 | GET | `/operators/:id/rating` | Public average star rating and rating count for an operator |
 | GET | `/admin/kyc` | Admin KYC review queue: every operator with expiry dates, decision, status and issues, ordered expired → rejected → unverified → valid (admin only) |
 | POST | `/operators/:id/kyc` | Admin KYC decision (`pending`/`approved`/`rejected`) with optional license/insurance expiry updates (admin only) |
+| POST | `/operators/:id/kyc/documents` | Operator submits KYC documents (license number + expiry, insurance expiry, document URLs); resets the decision to `pending` for re-review (operator/admin; operators only their own) |
+| GET | `/admin/audit` | Admin audit log: who did what and when for KYC decisions, webhook deletions, delivery retries and payout retries (admin only) |
 | GET | `/operators/:id/return-loads` | Backhaul suggestions: open loads near the operator's current location, ranked to cut empty return trips |
 | GET | `/operators/:id/earnings` | Driver earnings: delivered shipments, gross ETB, outstanding fuel advances, net (operator/admin only; operators see their own) |
 | GET/POST | `/advances` | Fuel advance requests (Telebirr / CBE Birr) |
@@ -137,6 +139,8 @@ Register an outbound webhook (`POST /webhooks` with `{url, events?, secret?}`) a
 **KYC expiry reminders**: documents expiring within 30 days are flagged (`⏳` warnings) in the admin KYC queue and the agent's queue listing, and pushed once per operator and warning as signed `operator.kyc_expiring` webhooks whenever the queue is reviewed (deduped in memory per process).
 
 **Delivery log**: every webhook attempt is persisted (`webhook_deliveries`, including the payload) with the response status or error and an attempt counter. Admins can inspect `GET /webhooks/:id/deliveries` and re-deliver a failed attempt with `POST /webhooks/deliveries/:id/retry` (up to the stored payload, freshly signed).
+
+**Document uploads & audit trail**: drivers submit KYC documents (license number, expiry dates, scanned-document URLs) from the Driver panel — any submission resets the operator to `pending` until an admin re-reviews. Admin actions (KYC decisions, webhook deletions, delivery retries, payout retries) are recorded in an append-only audit log, visible on the KYC tab and via `GET /admin/audit`.
 
 ## Web app
 

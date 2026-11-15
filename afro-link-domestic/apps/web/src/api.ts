@@ -1,6 +1,7 @@
 import { enqueue, requestBackgroundSync } from './outbox';
 import type {
   AgentResult,
+  AuditEntry,
   City,
   FuelAdvance,
   KycReview,
@@ -156,6 +157,17 @@ export const api = {
   getMetrics: () => request<MarketplaceMetrics>('/metrics', 'GET'),
 
   getKycQueue: () => request<KycReview[]>('/admin/kyc', 'GET'),
+  submitKycDocuments: (
+    operatorId: string,
+    input: {
+      licenseNumber?: string;
+      licenseExpiry?: string;
+      insuranceExpiry?: string;
+      licenseDocUrl?: string;
+      insuranceDocUrl?: string;
+    },
+  ) => request<Operator>(`/operators/${operatorId}/kyc/documents`, 'POST', input),
+  getAuditLog: () => request<AuditEntry[]>('/admin/audit', 'GET'),
   reviewKyc: (
     operatorId: string,
     decision: string,

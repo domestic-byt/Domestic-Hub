@@ -71,6 +71,55 @@ export async function operatorRoutes(app: FastifyInstance, store: MarketplaceSto
     return run(reply, () => store.getEarnings(id));
   });
 
+  app.post('/operators/:id/kyc/documents', async (request, reply) => {
+    if (guard(request, reply, 'operator', 'admin')) return;
+    const { id } = request.params as { id: string };
+    const actor = request.actor;
+    if (actor?.role === 'operator' && actor.subject !== id) {
+      return reply.code(403).send({ error: 'Operators can only submit their own documents.' });
+    }
+    const body = request.body as {
+      licenseNumber?: unknown;
+      licenseExpiry?: unknown;
+      insuranceExpiry?: unknown;
+      licenseDocUrl?: unknown;
+      insuranceDocUrl?: unknown;
+    } | null;
+    const errors: string[] = [];
+    for (const field of ['licenseExpiry', 'insuranceExpiry'] as const) {
+      const value = body?.[field];
+      if (value !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(value))) {
+        errors.push(`${field} must be an ISO date (YYYY-MM-DD).`);
+      }
+    }
+    for (const field of ['licenseDocUrl', 'insuranceDocUrl'] as const) {
+      const value = body?.[field];
+      if (value === undefined) continue;
+      try {
+        const parsed = new URL(String(value));
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error();
+      } catch {
+        errors.push(`${field} must be an http(s) URL.`);
+      }
+    }
+    if (errors.length > 0) {
+      return reply.code(422).send({ errors });
+    }
+    const str = (value: unknown) => (value === undefined ? undefined : String(value).trim());
+    return run(
+      reply,
+      () =>
+        store.submitKycDocuments(id, {
+          licenseNumber: str(body?.licenseNumber),
+          licenseExpiry: str(body?.licenseExpiry),
+          insuranceExpiry: str(body?.insuranceExpiry),
+          licenseDocUrl: str(body?.licenseDocUrl),
+          insuranceDocUrl: str(body?.insuranceDocUrl),
+        }),
+      200,
+    );
+  });
+
   app.post('/operators', async (request, reply) => {
     if (guard(request, reply, 'operator', 'admin')) return;
     const body = request.body as Partial<TruckOperatorBody> | null;

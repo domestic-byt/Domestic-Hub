@@ -17,6 +17,7 @@ import {
   Webhook,
   WebhookDelivery,
   WebhookEvent,
+  AuditEntry,
 } from '@afro-link/shared';
 import type { MarketplaceRepo } from './repo';
 
@@ -34,7 +35,10 @@ CREATE TABLE IF NOT EXISTS operators (
   status TEXT NOT NULL,
   license_expiry DATE,
   insurance_expiry DATE,
-  kyc_decision TEXT
+  kyc_decision TEXT,
+  license_number TEXT,
+  license_doc_url TEXT,
+  insurance_doc_url TEXT
 );
 CREATE TABLE IF NOT EXISTS loads (
   seq BIGSERIAL,
@@ -122,6 +126,17 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
   delivered_at TIMESTAMPTZ,
   payload JSONB NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS audit_log (
+  seq BIGSERIAL,
+  id TEXT PRIMARY KEY,
+  at TIMESTAMPTZ NOT NULL,
+  actor_id TEXT NOT NULL,
+  actor_role TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target TEXT NOT NULL,
+  detail TEXT
+);
 `;
 
 function str(value: unknown): string {
@@ -163,6 +178,9 @@ function rowToOperator(row: Row): TruckOperator {
     licenseExpiry: dateOf(row.license_expiry),
     insuranceExpiry: dateOf(row.insurance_expiry),
     kycDecision: row.kyc_decision === null ? undefined : (str(row.kyc_decision) as TruckOperator['kycDecision']),
+    licenseNumber: row.license_number === null ? undefined : str(row.license_number),
+    licenseDocUrl: row.license_doc_url === null ? undefined : str(row.license_doc_url),
+    insuranceDocUrl: row.insurance_doc_url === null ? undefined : str(row.insurance_doc_url),
   };
 }
 
@@ -288,14 +306,15 @@ export class PgRepo implements MarketplaceRepo {
 
   async saveOperator(operator: TruckOperator): Promise<void> {
     await this.pool.query(
-      `INSERT INTO operators (id, name, phone, truck_plate, capacity_tons, current_city, last_drop_off_city, status, license_expiry, insurance_expiry, kyc_decision)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO operators (id, name, phone, truck_plate, capacity_tons, current_city, last_drop_off_city, status, license_expiry, insurance_expiry, kyc_decision, license_number, license_doc_url, insurance_doc_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name, phone = EXCLUDED.phone, truck_plate = EXCLUDED.truck_plate,
          capacity_tons = EXCLUDED.capacity_tons, current_city = EXCLUDED.current_city,
          last_drop_off_city = EXCLUDED.last_drop_off_city, status = EXCLUDED.status,
          license_expiry = EXCLUDED.license_expiry, insurance_expiry = EXCLUDED.insurance_expiry,
-         kyc_decision = EXCLUDED.kyc_decision`,
+         kyc_decision = EXCLUDED.kyc_decision, license_number = EXCLUDED.license_number,
+         license_doc_url = EXCLUDED.license_doc_url, insurance_doc_url = EXCLUDED.insurance_doc_url`,
       [
         operator.id,
         operator.name,
@@ -308,6 +327,9 @@ export class PgRepo implements MarketplaceRepo {
         operator.licenseExpiry ?? null,
         operator.insuranceExpiry ?? null,
         operator.kycDecision ?? null,
+        operator.licenseNumber ?? null,
+        operator.licenseDocUrl ?? null,
+        operator.insuranceDocUrl ?? null,
       ],
     );
   }
@@ -553,6 +575,41 @@ export class PgRepo implements MarketplaceRepo {
           [limit],
         );
     return result.rows.map(rowToDelivery);
+  }
+
+  async saveAuditEntry(entry: AuditEntry): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO audit_log (id, at, actor_id, actor_role, action, target, detail)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (id) DO NOTHING`,
+      [
+        entry.id,
+        entry.at,
+        entry.actorId,
+        entry.actorRole,
+        entry.action,
+        entry.target,
+        entry.detail ?? null,
+      ],
+    );
+  }
+
+  async listAuditEntries(limit = 100): Promise<AuditEntry[]> {
+    const result = await this.pool.query(
+      'SELECT * FROM audit_log ORDER BY seq DESC LIMIT $1',
+      [limit],
+    );
+    return result.rows.map(
+      (row): AuditEntry => ({
+        id: str(row.id),
+        at: iso(row.at),
+        actorId: str(row.actor_id),
+        actorRole: str(row.actor_role) as AuditEntry['actorRole'],
+        action: str(row.action),
+        target: str(row.target),
+        detail: row.detail === null ? undefined : str(row.detail),
+      }),
+    );
   }
 
   async saveRating(rating: Rating): Promise<void> {
