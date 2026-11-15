@@ -120,6 +120,22 @@ class FakeStore implements AgentStore {
     return advance;
   }
 
+  async listAdvancesFor(operatorId: string): Promise<FuelAdvance[]> {
+    return this.advances
+      .filter((a) => a.operatorId === operatorId)
+      .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
+  }
+
+  async listInvoicesFor(shipperId: string): Promise<VatInvoice[]> {
+    return [...this.invoices.values()]
+      .filter(
+        (i) =>
+          this.loads.get(this.shipments.get(i.shipmentId)?.loadId ?? '')?.shipperId ===
+          shipperId,
+      )
+      .sort((a, b) => b.issuedAt.localeCompare(a.issuedAt));
+  }
+
   async getTracking(shipmentId: string): Promise<TrackingEvent[]> {
     if (!this.shipments.has(shipmentId)) {
       throw new DomainError('not_found', 'Shipment not found.');
@@ -389,6 +405,8 @@ describe('detectIntent', () => {
     expect(detectIntent('ዋጋው ስንት ነው?')).toBe('price_suggestion');
     expect(detectIntent('proof of delivery received by Abebe')).toBe('capture_pod');
     expect(detectIntent('rate 5 stars')).toBe('rate_shipment');
+    expect(detectIntent('what is the status of my advances?')).toBe('advance_status');
+    expect(detectIntent('show my invoices')).toBe('list_invoices');
     expect(detectIntent('help')).toBe('help');
     expect(detectIntent('xyzzy')).toBe('unknown');
   });
@@ -396,6 +414,7 @@ describe('detectIntent', () => {
   it('detects Amharic intents', () => {
     expect(detectIntent('ነዳጅ ቅድመ ክፍያ እፈልጋለሁ')).toBe('request_advance');
     expect(detectIntent('ደረሰኝ ስጠኝ')).toBe('create_invoice');
+    expect(detectIntent('የቅድሚ ክፍያ ሁኔታ')).toBe('advance_status');
     expect(detectIntent('እርዳታ አስፈልገኝ')).toBe('help');
   });
 
@@ -407,6 +426,8 @@ describe('detectIntent', () => {
     expect(detectIntent('gatiin meeqa?')).toBe('price_suggestion');
     expect(detectIntent('konkobaataa argadhu')).toBe('find_matches');
     expect(detectIntent('tirakoobii naaf hiiki')).toBe('get_metrics');
+    expect(detectIntent('kaffaltii kootii')).toBe('advance_status');
+    expect(detectIntent('faktoorota koo')).toBe('list_invoices');
     expect(detectIntent('gargaarsa barbaada')).toBe('help');
   });
 
@@ -418,6 +439,7 @@ describe('detectIntent', () => {
     expect(detectIntent('qiimaha waa muxuu?')).toBe('price_suggestion');
     expect(detectIntent('babuur la heli karo')).toBe('find_matches');
     expect(detectIntent('mzigo oo cusub')).toBe('post_load');
+    expect(detectIntent('faktuuradayda')).toBe('list_invoices');
     expect(detectIntent('caawimo')).toBe('help');
   });
 
@@ -441,6 +463,8 @@ describe('detectIntent', () => {
     expect(detectIntent('panga dereva')).toBe('assign_truck');
     expect(detectIntent('weka mzigo mpya')).toBe('post_load');
     expect(detectIntent('vipimo vya biashara')).toBe('get_metrics');
+    expect(detectIntent('malipo yangu')).toBe('advance_status');
+    expect(detectIntent('faktura zangu')).toBe('list_invoices');
     expect(detectIntent('msaada tafadhali')).toBe('help');
   });
 });
@@ -567,6 +591,45 @@ describe('DomesticAgent', () => {
     expect(store.advances).toHaveLength(1);
     expect(store.advances[0]!.channel).toBe<AdvanceChannel>('telebirr');
     expect(result.reply).toContain('8000 ETB');
+  });
+
+  it('reports advance status for the signed-in operator', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+    await agent.handle('Post 20 tons from Jimma to Addis Ababa for 40000 birr');
+    await agent.handle('assign the top match');
+    await agent.handle('request an 8000 birr telebirr advance');
+    const operatorId = store.advances[0]!.operatorId;
+
+    const result = await agent.handle('what is the status of my advances?', {
+      operatorId,
+    });
+    expect(result.intent).toBe('advance_status');
+    expect(result.reply).toContain('8000 ETB');
+    expect(result.reply).toContain('requested');
+  });
+
+  it('prompts for the operator when listing advances', async () => {
+    const agent = new DomesticAgent(seededStore());
+    const result = await agent.handle('status of my advances');
+    expect(result.intent).toBe('advance_status');
+    expect(result.reply).toMatch(/operator/i);
+  });
+
+  it('lists VAT invoices for the signed-in shipper', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+    await agent.handle('Post 20 tons from Jimma to Addis Ababa for 40000 birr', {
+      shipperId: 'shipper-1',
+    });
+    await agent.handle('assign the top match');
+    store.deliver((await store.findLatestShipment())!.id);
+    await agent.handle('issue the VAT invoice', { shipperId: 'shipper-1' });
+
+    const result = await agent.handle('show my invoices', { shipperId: 'shipper-1' });
+    expect(result.intent).toBe('list_invoices');
+    expect(result.reply).toContain('6000 ETB');
+    expect(result.reply).toContain('Total VAT: 6000 ETB');
   });
 
   it('surfaces domain rule violations as friendly warnings', async () => {

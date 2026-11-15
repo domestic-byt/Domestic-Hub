@@ -16,8 +16,10 @@ const HELP_TEXT = [
   '- Find trucks: "find trucks for <load id>"',
   '- Assign a carrier: "assign the top match for <load id>"',
   '- Fuel advances: "request an 8000 birr telebirr advance" (Telebirr or CBE Birr)',
+  "- Advance status: \"what is the status of my advances?\"",
   '- Track: "where is my shipment <id>?"',
   '- Invoices: "issue the VAT invoice" (15% Ethiopian VAT)',
+  '- My invoices: "show my invoices"',
   '- Metrics: "show me the business report"',
   '- Cancel: "cancel load <id>"',
   '- Earnings: "how much have I earned?"',
@@ -75,10 +77,14 @@ export class DomesticAgent {
           return await this.assignTruck(message, memory);
         case 'request_advance':
           return await this.requestAdvance(message, ctx, memory);
+        case 'advance_status':
+          return await this.advanceStatus(ctx, memory);
         case 'track_shipment':
           return await this.trackShipment(message, memory);
         case 'create_invoice':
           return await this.createInvoice(message, ctx, memory);
+        case 'list_invoices':
+          return await this.listInvoices(ctx);
         case 'get_metrics':
           return await this.reportMetrics();
         case 'cancel_load':
@@ -260,6 +266,65 @@ export class DomesticAgent {
     return {
       reply: `Fuel advance of ${advance.amountEtb} ETB requested via ${advance.channel} (status: ${advance.status}). It needs approval before disbursement.`,
       data: advance,
+    };
+  }
+
+  private async advanceStatus(ctx: AgentContext, memory: AgentMemoryState) {
+    const operatorId = ctx.operatorId ?? memory.lastOperatorId;
+    if (!operatorId) {
+      return {
+        reply:
+          'Which operator? Sign in as an operator (or share your operator id) and I will list your fuel advances.',
+      };
+    }
+    const advances = await this.store.listAdvancesFor(operatorId);
+    if (advances.length === 0) {
+      return {
+        reply: `No fuel advances for operator ${operatorId} yet — request one with "request an 8000 birr telebirr advance".`,
+        data: [],
+      };
+    }
+    memory.lastOperatorId = operatorId;
+    const lines = advances.map((a) => {
+      const parts = [
+        `- ${a.id}`,
+        `${a.amountEtb} ETB via ${a.channel}`,
+        a.status,
+      ];
+      if (a.payoutReference) parts.push(`ref ${a.payoutReference}`);
+      if (a.payoutAttempts && a.payoutAttempts > 1) parts.push(`${a.payoutAttempts} attempts`);
+      if (a.lastPayoutError) parts.push(`last error: ${a.lastPayoutError}`);
+      return parts.join(' · ');
+    });
+    return {
+      reply: `Fuel advances for operator ${operatorId}:\n${lines.join('\n')}`,
+      data: advances,
+    };
+  }
+
+  private async listInvoices(ctx: AgentContext) {
+    const shipperId = ctx.shipperId;
+    if (!shipperId) {
+      return {
+        reply:
+          'Which shipper? Sign in as a shipper (or share your shipper id) and I will list your VAT invoices.',
+      };
+    }
+    const invoices = await this.store.listInvoicesFor(shipperId);
+    if (invoices.length === 0) {
+      return {
+        reply: `No VAT invoices for shipper ${shipperId} yet — issue one with "issue the VAT invoice".`,
+        data: [],
+      };
+    }
+    const lines = invoices.map(
+      (i) =>
+        `- ${i.id} · shipment ${i.shipmentId} · ${i.subtotalEtb} + ${i.vatEtb} VAT = ${i.totalEtb} ETB (${i.issuedAt})`,
+    );
+    const totalVat = invoices.reduce((sum, i) => sum + i.vatEtb, 0);
+    return {
+      reply: `VAT invoices for shipper ${shipperId}:\n${lines.join('\n')}\nTotal VAT: ${totalVat} ETB.`,
+      data: invoices,
     };
   }
 

@@ -14,8 +14,11 @@ import type {
   OperatorEarnings,
   OperatorMatch,
   PriceSuggestion,
+  Rating,
   ReturnLoadMatch,
+  Shipment,
   TrackingEvent,
+  VatInvoice,
 } from './types';
 
 const CITIES = [
@@ -196,6 +199,7 @@ function ShipperPanel({ t }: { t: Strings }) {
   const [priceHint, setPriceHint] = useState<PriceSuggestion | null>(null);
   const [rateForm, setRateForm] = useState({ shipmentId: '', stars: 5, comment: '' });
   const [rateSaved, setRateSaved] = useState(false);
+  const [invoices, setInvoices] = useState<VatInvoice[] | null>(null);
   const [form, setForm] = useState({
     shipperId: 'shipper-1',
     origin: 'Jimma',
@@ -215,6 +219,21 @@ function ShipperPanel({ t }: { t: Strings }) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listInvoices(form.shipperId)
+      .then((rows) => {
+        if (!cancelled) setInvoices(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setInvoices(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [form.shipperId]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -446,6 +465,19 @@ function ShipperPanel({ t }: { t: Strings }) {
         </button>
       </form>
       {rateSaved && <p className="auth-ok">{t.ratingSaved}</p>}
+
+      <h2>{t.invoicesHeading}</h2>
+      {invoices && invoices.length === 0 && <p className="muted">{t.noInvoices}</p>}
+      {invoices &&
+        invoices.map((inv) => (
+          <div className="card" key={inv.id}>
+            <strong>{inv.id}</strong>{' '}
+            <span className="muted">
+              {t.shipmentId} {inv.shipmentId} · {inv.subtotalEtb} + {inv.vatEtb} VAT ={' '}
+              {inv.totalEtb} ETB · {new Date(inv.issuedAt).toLocaleString()}
+            </span>
+          </div>
+        ))}
     </section>
   );
 }
@@ -910,15 +942,27 @@ function DriverPanel({ t }: { t: Strings }) {
 function TrackPanel({ t }: { t: Strings }) {
   const [shipmentId, setShipmentId] = useState('');
   const [events, setEvents] = useState<TrackingEvent[] | null>(null);
+  const [shipment, setShipment] = useState<Shipment | null>(null);
+  const [rating, setRating] = useState<Rating | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    const id = shipmentId.trim();
     try {
-      setEvents(await api.getTracking(shipmentId.trim()));
+      const [evs, shp, rt] = await Promise.all([
+        api.getTracking(id),
+        api.getShipment(id).catch(() => null),
+        api.getShipmentRating(id).catch(() => null),
+      ]);
+      setEvents(evs);
+      setShipment(shp);
+      setRating(rt);
     } catch (err) {
       setEvents(null);
+      setShipment(null);
+      setRating(null);
       setError(err instanceof Error ? err.message : String(err));
     }
   }
@@ -945,6 +989,28 @@ function TrackPanel({ t }: { t: Strings }) {
             </li>
           ))}
         </ul>
+      )}
+      {shipment && (
+        <div className="card">
+          <strong>{shipment.status}</strong>
+          {shipment.pod && (
+            <div className="muted">
+              ✅ {t.podRecorded}: {shipment.pod.receiverName} ·{' '}
+              {new Date(shipment.pod.capturedAt).toLocaleString()}
+              {shipment.pod.note ? ` · ${shipment.pod.note}` : ''}
+            </div>
+          )}
+          <div>
+            {rating ? (
+              <span>
+                ⭐ {t.shipperRating}: {rating.stars}/5
+                {rating.comment ? ` — ${rating.comment}` : ''}
+              </span>
+            ) : (
+              <span className="muted">{t.notRated}</span>
+            )}
+          </div>
+        </div>
       )}
     </section>
   );

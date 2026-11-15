@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { City, TrackingEventKind } from '@afro-link/shared';
+import { City, DomainError, TrackingEventKind } from '@afro-link/shared';
 import { MarketplaceStore } from '../store';
 import { guard } from '../auth';
 import { run } from './loads';
@@ -29,6 +29,22 @@ function isCity(value: unknown): value is City {
 
 export async function shipmentRoutes(app: FastifyInstance, store: MarketplaceStore) {
   app.get('/shipments', async () => store.listShipments());
+
+  app.get('/shipments/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    return run(reply, async () => {
+      const shipment = await store.findShipment(id);
+      if (!shipment) {
+        throw new DomainError('not_found', 'Shipment not found.');
+      }
+      return shipment;
+    });
+  });
+
+  app.get('/shipments/:id/rating', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    return run(reply, async () => (await store.ratingForShipment(id)) ?? null);
+  });
 
   app.post('/shipments', async (request, reply) => {
     if (guard(request, reply, 'shipper', 'admin')) return;

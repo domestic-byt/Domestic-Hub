@@ -154,6 +154,52 @@ describe('authenticated api', async () => {
     expect(own.statusCode).toBe(404);
   });
 
+  it('lets operators see only their own advances and shippers only their own invoices', async () => {
+    const advancesForbidden = await app.inject({
+      method: 'GET',
+      url: '/operators/someone-else/advances',
+      headers: authed('operator', 'op-me'),
+    });
+    expect(advancesForbidden.statusCode).toBe(403);
+
+    const advancesShipperForbidden = await app.inject({
+      method: 'GET',
+      url: '/operators/op-me/advances',
+      headers: authed('shipper'),
+    });
+    expect(advancesShipperForbidden.statusCode).toBe(403);
+
+    const advancesOwn = await app.inject({
+      method: 'GET',
+      url: '/operators/op-me/advances',
+      headers: authed('operator', 'op-me'),
+    });
+    expect(advancesOwn.statusCode).toBe(200);
+    expect(advancesOwn.json()).toEqual([]);
+
+    const invoicesForbidden = await app.inject({
+      method: 'GET',
+      url: '/shippers/someone-else/invoices',
+      headers: authed('shipper', 'shipper-me'),
+    });
+    expect(invoicesForbidden.statusCode).toBe(403);
+
+    const invoicesOperatorForbidden = await app.inject({
+      method: 'GET',
+      url: '/shippers/shipper-me/invoices',
+      headers: authed('operator'),
+    });
+    expect(invoicesOperatorForbidden.statusCode).toBe(403);
+
+    const invoicesOwn = await app.inject({
+      method: 'GET',
+      url: '/shippers/shipper-me/invoices',
+      headers: authed('shipper', 'shipper-me'),
+    });
+    expect(invoicesOwn.statusCode).toBe(200);
+    expect(invoicesOwn.json()).toEqual([]);
+  });
+
   it('lets a shipper post loads and an operator register trucks', async () => {
     const operatorRes = await app.inject({
       method: 'POST',

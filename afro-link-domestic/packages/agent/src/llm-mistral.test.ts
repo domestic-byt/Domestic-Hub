@@ -93,6 +93,12 @@ describe('agent LLM fallback', () => {
     async requestFuelAdvance(): Promise<never> {
       throw new Error('not used');
     }
+    async listAdvancesFor(): Promise<never> {
+      throw new Error('not used');
+    }
+    async listInvoicesFor(): Promise<never> {
+      throw new Error('not used');
+    }
     async getTracking(): Promise<never> {
       throw new Error('not used');
     }

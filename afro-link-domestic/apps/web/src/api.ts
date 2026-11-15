@@ -134,6 +134,10 @@ export const api = {
     request<Shipment>('/shipments', 'POST', { loadId, operatorId }),
   addTrackingEvent: (shipmentId: string, kind: string, location?: City) =>
     request<TrackingEvent>(`/shipments/${shipmentId}/events`, 'POST', { kind, location }),
+  getShipment: (shipmentId: string) =>
+    request<Shipment>(`/shipments/${shipmentId}`, 'GET'),
+  getShipmentRating: (shipmentId: string) =>
+    request<Rating | null>(`/shipments/${shipmentId}/rating`, 'GET'),
   getTracking: (shipmentId: string) =>
     request<TrackingEvent[]>(`/shipments/${shipmentId}/tracking`, 'GET'),
   capturePod: (shipmentId: string, receiverName: string, note?: string) =>
@@ -155,6 +159,10 @@ export const api = {
 
   createInvoice: (shipmentId: string, shipperTin: string, operatorTin: string) =>
     request<VatInvoice>('/invoices', 'POST', { shipmentId, shipperTin, operatorTin }),
+  listInvoices: (shipperId: string) =>
+    request<VatInvoice[]>(`/shippers/${shipperId}/invoices`, 'GET'),
+  listOperatorAdvances: (operatorId: string) =>
+    request<FuelAdvance[]>(`/operators/${operatorId}/advances`, 'GET'),
 
   getMetrics: () => request<MarketplaceMetrics>('/metrics', 'GET'),
 

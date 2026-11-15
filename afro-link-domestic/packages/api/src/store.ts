@@ -645,6 +645,31 @@ export class MarketplaceStore implements AgentStore {
     return this.repo.listInvoices();
   }
 
+  async listAdvancesFor(operatorId: string): Promise<FuelAdvance[]> {
+    const advances = (await this.repo.listAdvances()).filter(
+      (a) => a.operatorId === operatorId,
+    );
+    return advances.sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
+  }
+
+  async listInvoicesFor(shipperId: string): Promise<VatInvoice[]> {
+    const [invoices, shipments, loads] = await Promise.all([
+      this.repo.listInvoices(),
+      this.repo.listShipments(),
+      this.repo.listLoads(),
+    ]);
+    const shipperByShipment = new Map(
+      shipments.map((s) => [s.id, loads.find((l) => l.id === s.loadId)?.shipperId]),
+    );
+    return invoices
+      .filter((invoice) => shipperByShipment.get(invoice.shipmentId) === shipperId)
+      .sort((a, b) => b.issuedAt.localeCompare(a.issuedAt));
+  }
+
+  async ratingForShipment(shipmentId: string): Promise<Rating | undefined> {
+    return this.repo.ratingByShipment(shipmentId);
+  }
+
   private async getLoad(id: string): Promise<Load> {
     const load = await this.repo.getLoad(id);
     if (!load) throw new DomainError('not_found', 'Load not found.');

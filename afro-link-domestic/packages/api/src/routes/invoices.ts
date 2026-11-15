@@ -34,4 +34,14 @@ export async function invoiceRoutes(app: FastifyInstance, store: MarketplaceStor
     const { id } = request.params as { id: string };
     return run(reply, () => store.getInvoice(id));
   });
+
+  app.get('/shippers/:id/invoices', async (request, reply) => {
+    if (guard(request, reply, 'shipper', 'admin')) return;
+    const { id } = request.params as { id: string };
+    const actor = request.actor;
+    if (actor?.role === 'shipper' && actor.subject !== id) {
+      return reply.code(403).send({ error: 'Shippers can only view their own invoices.' });
+    }
+    return run(reply, () => store.listInvoicesFor(id));
+  });
 }

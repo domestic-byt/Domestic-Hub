@@ -14,6 +14,10 @@ const PATTERNS: Array<[AgentIntent, RegExp]> = [
     /\bkyc\b|approv(?:e|al)|\breject(?:ed|ion)?\b|\bverify\b|verification\s*(?:queue|status)?|\u130d\u121d\u130c\u121b|\u12a0\u133d\u12f5\u1245|\u12cd\u12f5\u1245|qormata|hayyami|dib-u-eegis|ansaxi|\u121d\u122d\u1218\u122b|\u12a3\u1338\u12f5\u1245|ukaguzi|idhinisha/i,
   ],
   [
+    'advance_status',
+    /\badvances?\s+status\b|\bstatus\s+of\s+(?:my\s+)?advances?\b|\bmy\s+advances?\b|advance\s+history|payout\s+status|ቅድሚ.*ሁኔታ|ሁኔታ.*ቅድሚ|haala\s*kaffaltii|kaffaltii\s*kootii|xaalada\s*malipo|malipo\s*yangu|hali\s*ya\s*malipo/i,
+  ],
+  [
     'request_advance',
     /advance|fuel|telebirr|cbe\s*birr|ነዳጅ|ቅድሚ\s*ካፍያ|kaffaltii|gaadhin|ቅድሚ\s*ክፍሊት|malipo\s*ya\s*mbele|mafuta/i,
   ],
@@ -33,6 +37,10 @@ const PATTERNS: Array<[AgentIntent, RegExp]> = [
   [
     'earnings',
     /earnings|income|how\s*much.*(earn|paid|make)|payout\s*history|ገቢ|galii|dakhliga|ወሰኽ|mapato/i,
+  ],
+  [
+    'list_invoices',
+    /\bmy\s+invoices?\b|\blist\s+invoices?\b|\bshow\s+(?:my\s+)?invoices?\b|\binvoices?\s+(?:list|history)\b|faktuurada|faktuuradayda|faktura\s*zangu|faktoorota|ደረሰኞች|ዝርዝር\s*ደረሰኝ/i,
   ],
   ['create_invoice', /invoice|vat|ደረሰኝ|faktuur|ankara/i],
   ['assign_truck', /assign|book|dispatch|መድብ|ቆጣሪ|ramadi|ku\s*xidh|ምድብ|panga/i],

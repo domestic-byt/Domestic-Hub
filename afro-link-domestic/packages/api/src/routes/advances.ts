@@ -11,6 +11,16 @@ const ACTIONS: AdvanceAction[] = ['approve', 'reject', 'disburse', 'recover', 'd
 export async function advanceRoutes(app: FastifyInstance, store: MarketplaceStore) {
   app.get('/advances', async () => store.listAdvances());
 
+  app.get('/operators/:id/advances', async (request, reply) => {
+    if (guard(request, reply, 'operator', 'admin')) return;
+    const { id } = request.params as { id: string };
+    const actor = request.actor;
+    if (actor?.role === 'operator' && actor.subject !== id) {
+      return reply.code(403).send({ error: 'Operators can only view their own advances.' });
+    }
+    return run(reply, () => store.listAdvancesFor(id));
+  });
+
   app.post('/advances', async (request, reply) => {
     if (guard(request, reply, 'operator', 'admin')) return;
     const body = request.body as {

@@ -45,6 +45,8 @@ export interface AgentStore {
   rankReturnLoads(operatorId: string): Promise<ReturnLoadMatch[]>;
   assignShipment(loadId: string, operatorId: string): Promise<Shipment>;
   requestFuelAdvance(input: NewAdvanceInput): Promise<FuelAdvance>;
+  listAdvancesFor(operatorId: string): Promise<FuelAdvance[]>;
+  listInvoicesFor(shipperId: string): Promise<VatInvoice[]>;
   getTracking(shipmentId: string): Promise<TrackingEvent[]>;
   createInvoice(input: NewInvoiceInput): Promise<VatInvoice>;
   findShipment(shipmentId: string): Promise<Shipment | undefined>;
@@ -99,8 +101,10 @@ export type AgentIntent =
   | 'find_return_loads'
   | 'assign_truck'
   | 'request_advance'
+  | 'advance_status'
   | 'track_shipment'
   | 'create_invoice'
+  | 'list_invoices'
   | 'get_metrics'
   | 'cancel_load'
   | 'capture_pod'

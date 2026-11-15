@@ -1188,6 +1188,115 @@ describe('domestic ai agent endpoint', async () => {
     expect(allowed.json().reply).toContain('KYC review queue');
     expect(Array.isArray(allowed.json().data)).toBe(true);
   });
+
+  it('exposes shipment detail, per-shipment rating, operator advances and shipper invoices', async () => {
+    const operatorRes = await app.inject({
+      method: 'POST',
+      url: '/operators',
+      payload: {
+        name: 'Zeta Logistics',
+        phone: '+251911000999',
+        truckPlate: 'AA-90099',
+        capacityTons: 40,
+        currentCity: jimma,
+      },
+    });
+    expect(operatorRes.statusCode).toBe(201);
+    const operator = operatorRes.json();
+
+    const loadRes = await app.inject({
+      method: 'POST',
+      url: '/loads',
+      payload: {
+        shipperId: 'shipper-inv-test',
+        origin: jimma,
+        destination: addis,
+        weightTons: 10,
+        offeredPriceEtb: 20000,
+      },
+    });
+    expect(loadRes.statusCode).toBe(201);
+    const load = loadRes.json();
+
+    const shipmentRes = await app.inject({
+      method: 'POST',
+      url: '/shipments',
+      payload: { loadId: load.id, operatorId: operator.id },
+    });
+    expect(shipmentRes.statusCode).toBe(201);
+    const shipment = shipmentRes.json();
+
+    const detailRes = await app.inject({ method: 'GET', url: `/shipments/${shipment.id}` });
+    expect(detailRes.statusCode).toBe(200);
+    expect(detailRes.json().id).toBe(shipment.id);
+    expect(detailRes.json().status).toBe('assigned');
+
+    const missingRes = await app.inject({ method: 'GET', url: '/shipments/not-a-real-id' });
+    expect(missingRes.statusCode).toBe(404);
+
+    const earlyRatingRes = await app.inject({
+      method: 'GET',
+      url: `/shipments/${shipment.id}/rating`,
+    });
+    expect(earlyRatingRes.statusCode).toBe(200);
+    expect(earlyRatingRes.json()).toBeNull();
+
+    const advanceRes = await app.inject({
+      method: 'POST',
+      url: '/advances',
+      payload: {
+        operatorId: operator.id,
+        shipmentId: shipment.id,
+        amountEtb: 3000,
+        channel: 'cbe_birr',
+      },
+    });
+    expect(advanceRes.statusCode).toBe(201);
+
+    const advancesRes = await app.inject({
+      method: 'GET',
+      url: `/operators/${operator.id}/advances`,
+    });
+    expect(advancesRes.statusCode).toBe(200);
+    expect(advancesRes.json().some((a: { id: string }) => a.id === advanceRes.json().id)).toBe(true);
+
+    await app.inject({
+      method: 'POST',
+      url: `/shipments/${shipment.id}/events`,
+      payload: { kind: 'delivered', location: addis },
+    });
+
+    const invoiceRes = await app.inject({
+      method: 'POST',
+      url: '/invoices',
+      payload: { shipmentId: shipment.id, shipperTin: 'TIN-INV-1', operatorTin: 'TIN-OP-1' },
+    });
+    expect(invoiceRes.statusCode).toBe(201);
+    const invoice = invoiceRes.json();
+
+    const shipperInvoicesRes = await app.inject({
+      method: 'GET',
+      url: '/shippers/shipper-inv-test/invoices',
+    });
+    expect(shipperInvoicesRes.statusCode).toBe(200);
+    expect(
+      shipperInvoicesRes.json().some((i: { id: string }) => i.id === invoice.id),
+    ).toBe(true);
+
+    const ratingRes = await app.inject({
+      method: 'POST',
+      url: `/shipments/${shipment.id}/rating`,
+      payload: { shipperId: 'shipper-inv-test', stars: 4 },
+    });
+    expect(ratingRes.statusCode).toBe(201);
+
+    const ratingGetRes = await app.inject({
+      method: 'GET',
+      url: `/shipments/${shipment.id}/rating`,
+    });
+    expect(ratingGetRes.statusCode).toBe(200);
+    expect(ratingGetRes.json().stars).toBe(4);
+  });
 });
 
 function failingAdapter(channel: 'telebirr' | 'cbe_birr'): PayoutAdapter {
