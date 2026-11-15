@@ -550,6 +550,7 @@ function DriverPanel({ t }: { t: Strings }) {
   const [eventSaved, setEventSaved] = useState(false);
   const [dashOperator, setDashOperator] = useState('');
   const [dashboard, setDashboard] = useState<OperatorDashboard | null>(null);
+  const [accepted, setAccepted] = useState<{ loadId: string; shipmentId: string } | null>(null);
   const [docsForm, setDocsForm] = useState({
     operatorId: '',
     licenseNumber: '',
@@ -642,6 +643,18 @@ function DriverPanel({ t }: { t: Strings }) {
       setEarnings(await api.getEarnings(earningsOperator));
     } catch (e) {
       setEarnings(null);
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function acceptReturn(operatorId: string, loadId: string) {
+    setError(null);
+    setAccepted(null);
+    try {
+      const shipment = await api.createShipment(loadId, operatorId);
+      setAccepted({ loadId, shipmentId: shipment.id });
+      await refresh();
+    } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
   }
@@ -763,7 +776,13 @@ function DriverPanel({ t }: { t: Strings }) {
           {dashboard.returnLoads.length > 0 && (
             <em>
               {t.returnTrips}: {dashboard.returnLoads[0]!.origin} →{' '}
-              {dashboard.returnLoads[0]!.destination} ({dashboard.returnLoads[0]!.offeredPriceEtb.toLocaleString()} ETB)
+              {dashboard.returnLoads[0]!.destination} ({dashboard.returnLoads[0]!.offeredPriceEtb.toLocaleString()} ETB){' '}
+              <button onClick={() => void acceptReturn(dashOperator, dashboard.returnLoads[0]!.loadId)}>
+                {t.acceptLoad}
+              </button>
+              {accepted?.loadId === dashboard.returnLoads[0]!.loadId && (
+                <span className="auth-ok">{t.loadAccepted}</span>
+              )}
             </em>
           )}
         </div>
@@ -901,6 +920,16 @@ function DriverPanel({ t }: { t: Strings }) {
             <span className="muted">{m.loadId}</span>
           </div>
           {m.reasons.length > 0 && <em className="muted">({m.reasons.join('; ')})</em>}
+          <div className="row">
+            <button onClick={() => void acceptReturn(returnOperator, m.loadId)}>
+              {t.acceptLoad}
+            </button>
+            {accepted?.loadId === m.loadId && (
+              <em className="auth-ok">
+                {t.loadAccepted}: {accepted.shipmentId}
+              </em>
+            )}
+          </div>
         </div>
       ))}
 
