@@ -18,6 +18,7 @@ import type {
   Rating,
   ReturnLoadMatch,
   Shipment,
+  ShipmentEta,
   TrackingEvent,
   VatInvoice,
 } from './types';
@@ -145,6 +146,8 @@ export const api = {
     request<Rating | null>(`/shipments/${shipmentId}/rating`, 'GET'),
   getTracking: (shipmentId: string) =>
     request<TrackingEvent[]>(`/shipments/${shipmentId}/tracking`, 'GET'),
+  getShipmentEta: (shipmentId: string) =>
+    request<ShipmentEta | null>(`/shipments/${shipmentId}/eta`, 'GET'),
   capturePod: (shipmentId: string, receiverName: string, note?: string) =>
     request<Shipment>(`/shipments/${shipmentId}/pod`, 'POST', { receiverName, note }),
 

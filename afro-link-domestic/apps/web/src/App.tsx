@@ -19,6 +19,7 @@ import type {
   Rating,
   ReturnLoadMatch,
   Shipment,
+  ShipmentEta,
   TrackingEvent,
   VatInvoice,
 } from './types';
@@ -1202,6 +1203,7 @@ function TrackPanel({ t }: { t: Strings }) {
   const [shipmentId, setShipmentId] = useState('');
   const [events, setEvents] = useState<TrackingEvent[] | null>(null);
   const [shipment, setShipment] = useState<Shipment | null>(null);
+  const [eta, setEta] = useState<ShipmentEta | null>(null);
   const [rating, setRating] = useState<Rating | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -1210,17 +1212,20 @@ function TrackPanel({ t }: { t: Strings }) {
     setError(null);
     const id = shipmentId.trim();
     try {
-      const [evs, shp, rt] = await Promise.all([
+      const [evs, shp, et, rt] = await Promise.all([
         api.getTracking(id),
         api.getShipment(id).catch(() => null),
+        api.getShipmentEta(id).catch(() => null),
         api.getShipmentRating(id).catch(() => null),
       ]);
       setEvents(evs);
       setShipment(shp);
+      setEta(et);
       setRating(rt);
     } catch (err) {
       setEvents(null);
       setShipment(null);
+      setEta(null);
       setRating(null);
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -1252,6 +1257,12 @@ function TrackPanel({ t }: { t: Strings }) {
       {shipment && (
         <div className="card">
           <strong>{shipment.status}</strong>
+          {eta && (
+            <div className="muted">
+              🕒 {t.etaLabel}: ~{eta.hoursRemaining} h · {eta.remainingKm} km ·{' '}
+              {new Date(eta.etaAt).toLocaleString()}
+            </div>
+          )}
           {shipment.pod && (
             <div className="muted">
               ✅ {t.podRecorded}: {shipment.pod.receiverName} ·{' '}
@@ -1454,6 +1465,8 @@ const WEBHOOK_EVENTS = [
   'shipment.picked_up',
   'shipment.delivered',
   'load.cancelled',
+  'load.counter_offered',
+  'load.price_accepted',
   'operator.kyc_expiring',
 ] as const;
 

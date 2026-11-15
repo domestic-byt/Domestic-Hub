@@ -40,6 +40,7 @@ The web app reads `VITE_API_BASE` at build time (defaults to `/api`, proxied in 
 | GET/POST | `/shipments` | List / assign a load to an operator |
 | POST | `/shipments/:id/events` | Append tracking events (picked_up, in_transit, delivered, ...) |
 | GET | `/shipments/:id/tracking` | Live tracking timeline |
+| GET | `/shipments/:id/eta` | ETA estimate: total/remaining km (from the latest located tracking event), hours remaining at an assumed 40 km/h average speed (+2 h loading for assigned loads) and the projected arrival timestamp; `null` for cancelled shipments |
 | GET | `/shipments/:id` | Shipment detail (status, deadhead km, proof of delivery) |
 | GET | `/shipments/:id/rating` | The shipper's rating for this shipment, or `null` when unrated |
 | POST | `/shipments/:id/pod` | Capture proof of delivery (receiver name + note) on delivered shipments (operator/admin) |
@@ -151,7 +152,9 @@ Register an outbound webhook (`POST /webhooks` with `{url, events?, secret?}`) a
 
 **Document uploads & audit trail**: drivers submit KYC documents (license number, expiry dates, scanned-document URLs) from the Driver panel — any submission resets the operator to `pending` until an admin re-reviews. Admin actions (KYC decisions, webhook deletions, delivery retries, payout retries) are recorded in an append-only audit log, visible on the KYC tab and via `GET /admin/audit`.
 
-**Price negotiation & fleet overview**: operators counter-offer a price on open loads from the Driver panel (or by telling the agent "counter offer 35000 birr on load <id>"); shippers see the offer on their load cards and accept it with one tap (or "accept the offer for load <id>") to set the agreed price. The admin tab also shows a fleet overview \u2014 every registered truck with plate, availability, current city, KYC status and its active shipment.
+**Price negotiation & fleet overview**: operators counter-offer a price on open loads from the Driver panel (or by telling the agent "counter offer 35000 birr on load <id>"); shippers see the offer on their load cards and accept it with one tap (or "accept the offer for load <id>") to set the agreed price. Both sides of the negotiation emit webhooks (`load.counter_offered`, `load.price_accepted`) so ERPs can follow the deal. The admin tab also shows a fleet overview \u2014 every registered truck with plate, availability, current city, KYC status and its active shipment.
+
+**ETA estimates**: every shipment carries a projected arrival \u2014 computed from the lane distance, refined by the latest located tracking event, plus loading time for not-yet-picked-up loads (40 km/h average road speed). Shippers see it on the tracking panel and the agent adds it to "where is my shipment?" replies; `GET /shipments/:id/eta` exposes it to integrations.
 
 **Conversation transcripts**: every agent session keeps a rolling transcript (last 50 turns); "send me this conversation" returns the full user/agent exchange with timestamps for support records.
 

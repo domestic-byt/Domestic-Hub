@@ -12,6 +12,7 @@ import {
   PriceSuggestion,
   ReturnLoadMatch,
   Shipment,
+  ShipmentEta,
   TrackingEvent,
   TruckOperator,
   VatInvoice,
@@ -48,6 +49,7 @@ export interface AgentStore {
   listAdvancesFor(operatorId: string): Promise<FuelAdvance[]>;
   listInvoicesFor(shipperId: string): Promise<VatInvoice[]>;
   getTracking(shipmentId: string): Promise<TrackingEvent[]>;
+  shipmentEta(shipmentId: string): Promise<ShipmentEta | undefined>;
   createInvoice(input: NewInvoiceInput): Promise<VatInvoice>;
   findShipment(shipmentId: string): Promise<Shipment | undefined>;
   findLatestShipment(): Promise<Shipment | undefined>;

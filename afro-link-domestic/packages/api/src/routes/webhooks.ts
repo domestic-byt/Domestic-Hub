@@ -11,6 +11,8 @@ const VALID_EVENTS: WebhookEvent[] = [
   'shipment.picked_up',
   'shipment.delivered',
   'load.cancelled',
+  'load.counter_offered',
+  'load.price_accepted',
   'operator.kyc_expiring',
 ];
 

@@ -21,6 +21,7 @@ import {
   suggestPrice,
   validateAdvanceRequest,
   Rating,
+  estimateEta,
 } from '@afro-link/shared';
 import { DomesticAgent } from '../src/agent';
 import { detectIntent } from '../src/intent';
@@ -141,6 +142,19 @@ class FakeStore implements AgentStore {
       throw new DomainError('not_found', 'Shipment not found.');
     }
     return this.tracking.get(shipmentId) ?? [];
+  }
+
+  async shipmentEta(shipmentId: string) {
+    const shipment = this.shipments.get(shipmentId);
+    if (!shipment) throw new DomainError('not_found', 'Shipment not found.');
+    const load = this.loads.get(shipment.loadId);
+    if (!load) throw new DomainError('not_found', 'Load not found.');
+    return estimateEta({
+      shipment,
+      origin: load.origin,
+      destination: load.destination,
+      events: this.tracking.get(shipmentId) ?? [],
+    });
   }
 
   async createInvoice(input: NewInvoiceInput): Promise<VatInvoice> {
@@ -696,6 +710,8 @@ describe('DomesticAgent', () => {
     const result = await agent.handle('where is my shipment?');
     expect(result.intent).toBe('track_shipment');
     expect(result.reply).toContain('assigned');
+    expect(result.reply).toContain('ETA:');
+    expect(result.reply).toContain('km left');
   });
 
   it('issues a VAT invoice only after delivery', async () => {

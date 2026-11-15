@@ -1411,6 +1411,26 @@ describe('domestic ai agent endpoint', async () => {
     });
     expect(shipmentRes.statusCode).toBe(201);
 
+    const etaRes = await app.inject({
+      method: 'GET',
+      url: `/shipments/${shipmentRes.json().id}/eta`,
+    });
+    expect(etaRes.statusCode).toBe(200);
+    expect(etaRes.json().remainingKm).toBeGreaterThan(0);
+    expect(etaRes.json().hoursRemaining).toBeGreaterThan(0);
+    expect(etaRes.json().etaAt).toBeTruthy();
+
+    const hookRes = await app.inject({
+      method: 'POST',
+      url: '/webhooks',
+      payload: {
+        url: 'https://hooks.example/negotiation',
+        events: ['load.counter_offered', 'load.price_accepted'],
+      },
+    });
+    expect(hookRes.statusCode).toBe(201);
+    expect(hookRes.json().events).toEqual(['load.counter_offered', 'load.price_accepted']);
+
     const fleet = await app.inject({ method: 'GET', url: '/admin/fleet' });
     expect(fleet.statusCode).toBe(200);
     const entry = fleet

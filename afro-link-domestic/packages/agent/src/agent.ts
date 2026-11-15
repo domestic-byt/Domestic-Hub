@@ -377,9 +377,11 @@ export class DomesticAgent {
           `- ${e.at} ${e.kind}${e.location ? ` @ ${e.location.name}` : ''}${e.note ? ` — ${e.note}` : ''}`,
       )
       .join('\n');
+    const eta = await this.store.shipmentEta(shipment.id);
+    const etaLine = eta ? `\nETA: ~${eta.hoursRemaining} h remaining · ${eta.remainingKm} km left · arriving ${eta.etaAt}` : '';
     return {
-      reply: `Tracking for shipment ${shipment.id} (status: ${shipment.status}):\n${timeline}`,
-      data: events,
+      reply: `Tracking for shipment ${shipment.id} (status: ${shipment.status}):\n${timeline}${etaLine}`,
+      data: { events, eta },
     };
   }
 

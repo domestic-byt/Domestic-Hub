@@ -134,6 +134,13 @@ export interface TrackingEvent {
   note?: string;
 }
 
+export interface ShipmentEta {
+  remainingKm: number;
+  totalKm: number;
+  hoursRemaining: number;
+  etaAt: string;
+}
+
 export interface FuelAdvance {
   id: string;
   operatorId: string;

@@ -37,6 +37,8 @@ import {
   validateRatingStars,
   AuditEntry,
   FleetEntry,
+  ShipmentEta,
+  estimateEta,
 } from '@afro-link/shared';
 import type {
   AgentStore,
@@ -544,6 +546,18 @@ export class MarketplaceStore implements AgentStore {
     return this.repo.getTrackingEvents(shipmentId);
   }
 
+  async shipmentEta(shipmentId: string): Promise<ShipmentEta | undefined> {
+    const shipment = await this.getShipment(shipmentId);
+    const load = await this.getLoad(shipment.loadId);
+    const events = await this.repo.getTrackingEvents(shipmentId);
+    return estimateEta({
+      shipment,
+      origin: load.origin,
+      destination: load.destination,
+      events,
+    });
+  }
+
   async requestFuelAdvance(input: NewAdvanceInput): Promise<FuelAdvance> {
     const shipment = await this.getShipment(input.shipmentId);
     if (shipment.operatorId !== input.operatorId) {
@@ -695,6 +709,11 @@ export class MarketplaceStore implements AgentStore {
     }
     const updated: Load = { ...load, counterOfferEtb: priceEtb, counterOfferBy: operatorId };
     await this.repo.saveLoad(updated);
+    void this.webhooks?.dispatch('load.counter_offered', {
+      load: updated,
+      operatorId,
+      priceEtb,
+    });
     return updated;
   }
 
@@ -710,6 +729,10 @@ export class MarketplaceStore implements AgentStore {
       counterOfferBy: undefined,
     };
     await this.repo.saveLoad(updated);
+    void this.webhooks?.dispatch('load.price_accepted', {
+      load: updated,
+      priceEtb: updated.offeredPriceEtb,
+    });
     return updated;
   }
 

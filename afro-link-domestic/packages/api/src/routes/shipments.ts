@@ -41,6 +41,14 @@ export async function shipmentRoutes(app: FastifyInstance, store: MarketplaceSto
     });
   });
 
+  app.get('/shipments/:id/eta', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    return run(reply, async () => {
+      const eta = await store.shipmentEta(id);
+      return eta ?? null;
+    });
+  });
+
   app.get('/shipments/:id/rating', async (request, reply) => {
     const { id } = request.params as { id: string };
     return run(reply, async () => (await store.ratingForShipment(id)) ?? null);

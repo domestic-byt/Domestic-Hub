@@ -102,6 +102,9 @@ describe('agent LLM fallback', () => {
     async getTracking(): Promise<never> {
       throw new Error('not used');
     }
+    async shipmentEta(): Promise<never> {
+      throw new Error('not used');
+    }
     async createInvoice(): Promise<never> {
       throw new Error('not used');
     }
