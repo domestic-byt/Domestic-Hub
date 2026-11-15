@@ -1,0 +1,845 @@
+import {
+  AdvanceAction,
+  AdvanceChannel,
+  City,
+  DomainError,
+  FuelAdvance,
+  Load,
+  OperatorMatch,
+  PayoutAdapter,
+  PriceSuggestion,
+  ReturnLoadMatch,
+  Shipment,
+  TrackingEvent,
+  TrackingEventKind,
+  TruckOperator,
+  MarketplaceMetrics,
+  OperatorDashboard,
+  OperatorEarnings,
+  VatInvoice,
+  computeVat,
+  haversineKm,
+  nextAdvanceStatus,
+  rankOperatorsForLoad,
+  rankReturnLoads,
+  suggestPrice,
+  validateAdvanceRequest,
+  ProofOfDelivery,
+  kycIssues,
+  kycQueue,
+  kycStatus,
+  kycExpiryWarnings,
+  KYC_EXPIRY_SOON_DAYS,
+  KycDecision,
+  KycReview,
+  averageRating,
+  Rating,
+  validateRatingStars,
+  AuditEntry,
+  FleetEntry,
+  ShipmentEta,
+  estimateEta,
+} from '@afro-link/shared';
+import type {
+  AgentStore,
+  NewAdvanceInput,
+  NewInvoiceInput,
+  NewLoadInput,
+} from '@afro-link/agent';
+import type { MarketplaceRepo } from './repo';
+import { defaultPayoutAdapters } from './payouts';
+import { WebhookDispatcher } from './webhooks';
+
+const ZERO_DEADHEAD_KM = 25;
+
+export class MarketplaceStore implements AgentStore {
+  private readonly notifiedKycExpiry = new Set<string>();
+
+  constructor(
+    private readonly repo: MarketplaceRepo,
+    private readonly payouts: Record<AdvanceChannel, PayoutAdapter> = defaultPayoutAdapters(),
+    private readonly webhooks?: WebhookDispatcher,
+  ) {}
+
+  async createOperator(input: {
+    name: string;
+    phone: string;
+    truckPlate: string;
+    capacityTons: number;
+    currentCity: City;
+    lastDropOffCity?: City;
+    licenseExpiry?: string;
+    insuranceExpiry?: string;
+  }): Promise<TruckOperator> {
+    const operator: TruckOperator = {
+      ...input,
+      id: crypto.randomUUID(),
+      status: 'available',
+    };
+    await this.repo.saveOperator(operator);
+    return operator;
+  }
+
+  async createLoad(input: NewLoadInput): Promise<Load> {
+    const load: Load = {
+      ...input,
+      id: crypto.randomUUID(),
+      availableFrom: input.availableFrom ?? new Date().toISOString(),
+      status: 'open',
+    };
+    await this.repo.saveLoad(load);
+    return load;
+  }
+
+  async rankMatches(loadId: string): Promise<OperatorMatch[]> {
+    const load = await this.getLoad(loadId);
+    const matches = rankOperatorsForLoad(load, await this.repo.listOperators());
+    return Promise.all(
+      matches.map(async (m) => {
+        const rating = averageRating(await this.repo.ratingsForOperator(m.operatorId));
+        return rating ? { ...m, ratingAvg: rating.average, ratingCount: rating.count } : m;
+      }),
+    );
+  }
+
+  async rateShipment(input: {
+    shipmentId: string;
+    shipperId: string;
+    stars: number;
+    comment?: string;
+  }): Promise<Rating> {
+    const shipment = await this.getShipment(input.shipmentId);
+    if (shipment.status !== 'delivered') {
+      throw new DomainError('conflict', 'Ratings can only be given for delivered shipments.');
+    }
+    const load = await this.getLoad(shipment.loadId);
+    if (load.shipperId !== input.shipperId) {
+      throw new DomainError('conflict', 'You can only rate your own shipments.');
+    }
+    if (await this.repo.ratingByShipment(shipment.id)) {
+      throw new DomainError('conflict', 'This shipment has already been rated.');
+    }
+    const errors = validateRatingStars(input.stars);
+    if (errors.length > 0) {
+      throw new DomainError('validation', errors[0]!, errors);
+    }
+    const rating: Rating = {
+      id: crypto.randomUUID(),
+      shipmentId: shipment.id,
+      operatorId: shipment.operatorId,
+      shipperId: input.shipperId,
+      stars: input.stars,
+      ...(input.comment && input.comment.trim() !== '' ? { comment: input.comment.trim() } : {}),
+      createdAt: new Date().toISOString(),
+    };
+    await this.repo.saveRating(rating);
+    return rating;
+  }
+
+  async operatorRating(
+    operatorId: string,
+  ): Promise<{ average: number; count: number } | undefined> {
+    return averageRating(await this.repo.ratingsForOperator(operatorId));
+  }
+
+  async rankReturnLoads(operatorId: string): Promise<ReturnLoadMatch[]> {
+    const operator = await this.getOperator(operatorId);
+    return rankReturnLoads(operator, await this.repo.listLoads());
+  }
+
+  async assignShipment(loadId: string, operatorId: string): Promise<Shipment> {
+    const load = await this.getLoad(loadId);
+    if (load.status !== 'open') {
+      throw new DomainError('conflict', `Load is ${load.status}, not open.`);
+    }
+    const operator = await this.getOperator(operatorId);
+    if (operator.capacityTons < load.weightTons) {
+      throw new DomainError('conflict', 'Operator capacity is below load weight.');
+    }
+    const issues = kycIssues(operator);
+    if (operator.kycDecision === 'rejected') {
+      throw new DomainError('conflict', 'Operator KYC was rejected by an admin.');
+    }
+    if (issues.length > 0) {
+      throw new DomainError('conflict', `Operator KYC failed: ${issues.join('; ')}.`);
+    }
+    const deadheadKm =
+      Math.round(
+        haversineKm(operator.lastDropOffCity ?? operator.currentCity, load.origin) * 10,
+      ) / 10;
+    const shipment: Shipment = {
+      id: crypto.randomUUID(),
+      loadId: load.id,
+      operatorId: operator.id,
+      assignedAt: new Date().toISOString(),
+      status: 'assigned',
+      deadheadKm,
+    };
+    await this.repo.saveShipment(shipment);
+    await this.repo.saveLoad({ ...load, status: 'assigned' });
+    await this.repo.saveOperator({ ...operator, status: 'on_trip' });
+    await this.repo.appendTrackingEvent({
+      shipmentId: shipment.id,
+      at: shipment.assignedAt,
+      kind: 'assigned',
+      location: load.origin,
+      note: `Assigned to ${operator.name} (${operator.truckPlate}).`,
+    });
+    void this.webhooks?.dispatch('shipment.assigned', {
+      shipment,
+      load,
+      operatorId: operator.id,
+    });
+    return shipment;
+  }
+
+  async cancelLoad(loadId: string, shipperId?: string): Promise<Load> {
+    const load = await this.getLoad(loadId);
+    if (shipperId !== undefined && load.shipperId !== shipperId) {
+      throw new DomainError('conflict', 'You can only cancel your own loads.');
+    }
+    if (load.status === 'delivered') {
+      throw new DomainError('conflict', 'Delivered loads cannot be cancelled.');
+    }
+    if (load.status === 'cancelled') {
+      throw new DomainError('conflict', 'Load is already cancelled.');
+    }
+    const shipments = (await this.repo.listShipments()).filter(
+      (s) => s.loadId === load.id && (s.status === 'assigned' || s.status === 'in_transit'),
+    );
+    for (const shipment of shipments) {
+      const advances = (await this.repo.listAdvances()).filter(
+        (a) =>
+          a.shipmentId === shipment.id &&
+          (a.status === 'requested' || a.status === 'approved' || a.status === 'disbursed'),
+      );
+      if (advances.length > 0) {
+        throw new DomainError(
+          'conflict',
+          'Load has an active fuel advance; resolve it before cancelling.',
+        );
+      }
+    }
+    for (const shipment of shipments) {
+      await this.repo.saveShipment({ ...shipment, status: 'cancelled' });
+      const operator = await this.repo.getOperator(shipment.operatorId);
+      if (operator && operator.status === 'on_trip') {
+        await this.repo.saveOperator({ ...operator, status: 'available' });
+      }
+    }
+    const cancelled: Load = { ...load, status: 'cancelled' };
+    await this.repo.saveLoad(cancelled);
+    void this.webhooks?.dispatch('load.cancelled', { load: cancelled, shipments });
+    return cancelled;
+  }
+
+  async reviewKyc(input: {
+    operatorId: string;
+    decision: KycDecision;
+    licenseExpiry?: string;
+    insuranceExpiry?: string;
+  }): Promise<TruckOperator> {
+    const operator = await this.getOperator(input.operatorId);
+    const updated: TruckOperator = {
+      ...operator,
+      kycDecision: input.decision,
+      licenseExpiry: input.licenseExpiry ?? operator.licenseExpiry,
+      insuranceExpiry: input.insuranceExpiry ?? operator.insuranceExpiry,
+    };
+    await this.repo.saveOperator(updated);
+    return updated;
+  }
+
+  async submitKycDocuments(
+    operatorId: string,
+    input: {
+      licenseNumber?: string;
+      licenseExpiry?: string;
+      insuranceExpiry?: string;
+      licenseDocUrl?: string;
+      insuranceDocUrl?: string;
+    },
+  ): Promise<TruckOperator> {
+    const operator = await this.getOperator(operatorId);
+    const updated: TruckOperator = {
+      ...operator,
+      licenseNumber: input.licenseNumber ?? operator.licenseNumber,
+      licenseExpiry: input.licenseExpiry ?? operator.licenseExpiry,
+      insuranceExpiry: input.insuranceExpiry ?? operator.insuranceExpiry,
+      licenseDocUrl: input.licenseDocUrl ?? operator.licenseDocUrl,
+      insuranceDocUrl: input.insuranceDocUrl ?? operator.insuranceDocUrl,
+      kycDecision: 'pending',
+    };
+    await this.repo.saveOperator(updated);
+    return updated;
+  }
+
+  async saveAuditEntry(entry: AuditEntry): Promise<void> {
+    await this.repo.saveAuditEntry(entry);
+  }
+
+  async listAuditEntries(limit = 100): Promise<AuditEntry[]> {
+    return this.repo.listAuditEntries(limit);
+  }
+
+  async kycReviewQueue(): Promise<KycReview[]> {
+    void this.notifyKycExpiry();
+    return kycQueue(await this.repo.listOperators());
+  }
+
+  async notifyKycExpiry(
+    withinDays: number = KYC_EXPIRY_SOON_DAYS,
+  ): Promise<KycReview[]> {
+    const operators = await this.repo.listOperators();
+    const now = new Date();
+    const flagged: KycReview[] = [];
+    for (const operator of operators) {
+      const warnings = kycExpiryWarnings(operator, withinDays, now);
+      if (warnings.length === 0) continue;
+      let fresh = false;
+      for (const warning of warnings) {
+        const key = `${operator.id}:${warning}`;
+        if (this.notifiedKycExpiry.has(key)) continue;
+        this.notifiedKycExpiry.add(key);
+        fresh = true;
+      }
+      if (!fresh) continue;
+      flagged.push({
+        operatorId: operator.id,
+        operatorName: operator.name,
+        truckPlate: operator.truckPlate,
+        licenseExpiry: operator.licenseExpiry,
+        insuranceExpiry: operator.insuranceExpiry,
+        decision: operator.kycDecision ?? 'pending',
+        status: kycStatus(operator, now),
+        issues: kycIssues(operator, now),
+        expiring: warnings,
+      });
+      void this.webhooks?.dispatch('operator.kyc_expiring', {
+        operatorId: operator.id,
+        operatorName: operator.name,
+        truckPlate: operator.truckPlate,
+        warnings,
+      });
+    }
+    return flagged;
+  }
+
+  async suggestLanePrice(input: {
+    origin: City;
+    destination: City;
+    weightTons: number;
+  }): Promise<PriceSuggestion | null> {
+    return suggestPrice(await this.repo.listLoads(), input);
+  }
+
+  async operatorDashboard(operatorId: string): Promise<OperatorDashboard> {
+    const operator = await this.getOperator(operatorId);
+    const [shipments, loads, earnings, returnLoads, advances] = await Promise.all([
+      this.repo.listShipments(),
+      this.repo.listLoads(),
+      this.getEarnings(operatorId),
+      this.rankReturnLoads(operatorId),
+      this.repo.listAdvances(),
+    ]);
+    const loadById = new Map(loads.map((l) => [l.id, l]));
+    const active = shipments
+      .filter(
+        (s) =>
+          s.operatorId === operatorId && (s.status === 'assigned' || s.status === 'in_transit'),
+      )
+      .sort((a, b) => b.assignedAt.localeCompare(a.assignedAt))[0];
+    const activeAdvance = advances
+      .filter(
+        (a) =>
+          a.operatorId === operatorId &&
+          !['recovered', 'rejected', 'defaulted'].includes(a.status),
+      )
+      .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt))[0];
+    return {
+      operatorId,
+      operatorName: operator.name,
+      currentCity: operator.currentCity.name,
+      activeShipment: active
+        ? {
+            shipmentId: active.id,
+            status: active.status,
+            origin: loadById.get(active.loadId)?.origin.name ?? '',
+            destination: loadById.get(active.loadId)?.destination.name ?? '',
+          }
+        : undefined,
+      activeAdvance,
+      outstandingAdvanceEtb: earnings.outstandingAdvanceEtb,
+      deliveredShipments: earnings.deliveredShipments,
+      netEtb: earnings.netEtb,
+      returnLoads: returnLoads.slice(0, 3),
+    };
+  }
+
+  async getEarnings(operatorId: string): Promise<OperatorEarnings> {
+    const operator = await this.getOperator(operatorId);
+    const [shipments, loads, advances] = await Promise.all([
+      this.repo.listShipments(),
+      this.repo.listLoads(),
+      this.repo.listAdvances(),
+    ]);
+    const loadById = new Map(loads.map((l) => [l.id, l]));
+    const delivered = shipments.filter(
+      (s) => s.operatorId === operatorId && s.status === 'delivered',
+    );
+    const grossEtb = delivered.reduce(
+      (sum, s) => sum + (loadById.get(s.loadId)?.offeredPriceEtb ?? 0),
+      0,
+    );
+    const outstandingAdvanceEtb = advances
+      .filter(
+        (a) =>
+          a.operatorId === operatorId &&
+          (a.status === 'requested' || a.status === 'approved' || a.status === 'disbursed'),
+      )
+      .reduce((sum, a) => sum + a.amountEtb, 0);
+    return {
+      operatorId,
+      operatorName: operator.name,
+      deliveredShipments: delivered.length,
+      grossEtb,
+      outstandingAdvanceEtb,
+      netEtb: grossEtb - outstandingAdvanceEtb,
+    };
+  }
+
+  async addTrackingEvent(
+    shipmentId: string,
+    kind: TrackingEventKind,
+    location?: City,
+    note?: string,
+  ): Promise<TrackingEvent> {
+    const shipment = await this.getShipment(shipmentId);
+    const event: TrackingEvent = {
+      shipmentId: shipment.id,
+      at: new Date().toISOString(),
+      kind,
+      location,
+      note,
+    };
+    await this.repo.appendTrackingEvent(event);
+
+    if (kind === 'picked_up') {
+      await this.repo.saveShipment({ ...shipment, status: 'in_transit' });
+      void this.webhooks?.dispatch('shipment.picked_up', { shipment, event });
+    }
+    if (kind === 'delivered') {
+      await this.repo.saveShipment({
+        ...shipment,
+        status: 'delivered',
+        deliveredAt: event.at,
+      });
+      const load = await this.repo.getLoad(shipment.loadId);
+      if (load) {
+        await this.repo.saveLoad({ ...load, status: 'delivered' });
+      }
+      const operator = await this.repo.getOperator(shipment.operatorId);
+      if (operator) {
+        await this.repo.saveOperator({
+          ...operator,
+          status: 'available',
+          currentCity: location ?? load?.destination ?? operator.currentCity,
+          lastDropOffCity: location ?? load?.destination,
+        });
+      }
+      void this.webhooks?.dispatch('shipment.delivered', { shipment, event, load });
+    }
+    return event;
+  }
+
+  async getMetrics(): Promise<MarketplaceMetrics> {
+    const [loads, shipments, advances, invoices] = await Promise.all([
+      this.repo.listLoads(),
+      this.repo.listShipments(),
+      this.repo.listAdvances(),
+      this.repo.listInvoices(),
+    ]);
+    const deadheads = shipments
+      .map((s) => s.deadheadKm)
+      .filter((km): km is number => typeof km === 'number');
+    const avgDeadheadKm =
+      deadheads.length === 0
+        ? 0
+        : Math.round((deadheads.reduce((sum, km) => sum + km, 0) / deadheads.length) * 10) / 10;
+    const zeroDeadheadShare =
+      deadheads.length === 0
+        ? 0
+        : Math.round(
+            (deadheads.filter((km) => km < ZERO_DEADHEAD_KM).length / deadheads.length) * 1000,
+          ) / 1000;
+    const disbursed = advances.filter((a) => a.status === 'disbursed' || a.status === 'recovered');
+    const byChannel = { telebirr: 0, cbe_birr: 0 };
+    for (const advance of disbursed) {
+      byChannel[advance.channel] += advance.amountEtb;
+    }
+    const failedPayouts = advances
+      .filter((a) => typeof a.lastPayoutError === 'string' && a.lastPayoutError !== '')
+      .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt))
+      .slice(0, 10)
+      .map((a) => ({
+        advanceId: a.id,
+        operatorId: a.operatorId,
+        channel: a.channel,
+        status: a.status,
+        amountEtb: a.amountEtb,
+        attempts: a.payoutAttempts ?? 1,
+        error: a.lastPayoutError!,
+      }));
+    return {
+      loads: {
+        total: loads.length,
+        open: loads.filter((l) => l.status === 'open').length,
+        assigned: loads.filter((l) => l.status === 'assigned').length,
+        delivered: loads.filter((l) => l.status === 'delivered').length,
+        cancelled: loads.filter((l) => l.status === 'cancelled').length,
+      },
+      shipments: {
+        total: shipments.length,
+        delivered: shipments.filter((s) => s.status === 'delivered').length,
+      },
+      avgDeadheadKm,
+      zeroDeadheadShare,
+      advances: {
+        total: advances.length,
+        disbursedEtb: disbursed.reduce((sum, a) => sum + a.amountEtb, 0),
+        byChannel,
+      },
+      vat: {
+        invoiceCount: invoices.length,
+        totalVatEtb: invoices.reduce((sum, i) => sum + i.vatEtb, 0),
+        totalWithVatEtb: invoices.reduce((sum, i) => sum + i.totalEtb, 0),
+      },
+      failedPayouts,
+    };
+  }
+
+  async capturePod(
+    shipmentId: string,
+    receiverName: string,
+    note?: string,
+  ): Promise<Shipment> {
+    const shipment = await this.getShipment(shipmentId);
+    if (shipment.status !== 'delivered') {
+      throw new DomainError(
+        'conflict',
+        'Proof of delivery can only be captured on delivered shipments.',
+      );
+    }
+    const trimmed = receiverName.trim();
+    if (trimmed === '') {
+      throw new DomainError('validation', 'Receiver name is required.');
+    }
+    const pod: ProofOfDelivery = {
+      receiverName: trimmed,
+      ...(note && note.trim() !== '' ? { note: note.trim() } : {}),
+      capturedAt: new Date().toISOString(),
+    };
+    const updated: Shipment = { ...shipment, pod };
+    await this.repo.saveShipment(updated);
+    return updated;
+  }
+
+  async getTracking(shipmentId: string): Promise<TrackingEvent[]> {
+    await this.getShipment(shipmentId);
+    return this.repo.getTrackingEvents(shipmentId);
+  }
+
+  async shipmentEta(shipmentId: string): Promise<ShipmentEta | undefined> {
+    const shipment = await this.getShipment(shipmentId);
+    const load = await this.getLoad(shipment.loadId);
+    const events = await this.repo.getTrackingEvents(shipmentId);
+    return estimateEta({
+      shipment,
+      origin: load.origin,
+      destination: load.destination,
+      events,
+    });
+  }
+
+  async requestFuelAdvance(input: NewAdvanceInput): Promise<FuelAdvance> {
+    const shipment = await this.getShipment(input.shipmentId);
+    if (shipment.operatorId !== input.operatorId) {
+      throw new DomainError('conflict', 'Shipment does not belong to this operator.');
+    }
+    const load = await this.getLoad(shipment.loadId);
+    const errors = validateAdvanceRequest({
+      amountEtb: input.amountEtb,
+      load,
+      activeAdvances: await this.repo.activeAdvancesFor(input.operatorId),
+    });
+    if (errors.length > 0) {
+      throw new DomainError('validation', errors[0]!, errors);
+    }
+    const advance: FuelAdvance = {
+      ...input,
+      id: crypto.randomUUID(),
+      status: 'requested',
+      requestedAt: new Date().toISOString(),
+    };
+    await this.repo.saveAdvance(advance);
+    return advance;
+  }
+
+  async transitionAdvance(id: string, action: AdvanceAction): Promise<FuelAdvance> {
+    const advance = await this.repo.getAdvance(id);
+    if (!advance) {
+      throw new DomainError('not_found', 'Advance not found.');
+    }
+    const next = nextAdvanceStatus(advance.status, action);
+    if (!next) {
+      throw new DomainError(
+        'conflict',
+        `Cannot ${action} an advance in status '${advance.status}'.`,
+      );
+    }
+    let updated: FuelAdvance = { ...advance, status: next };
+    if (action === 'disburse' || action === 'recover') {
+      updated = await this.runPayout(advance, updated, action);
+    }
+    await this.repo.saveAdvance(updated);
+    return updated;
+  }
+
+  async retryPayout(id: string): Promise<FuelAdvance> {
+    const advance = await this.repo.getAdvance(id);
+    if (!advance) {
+      throw new DomainError('not_found', 'Advance not found.');
+    }
+    if (advance.status !== 'approved' && advance.status !== 'disbursed') {
+      throw new DomainError(
+        'conflict',
+        `No payout to retry for an advance in status '${advance.status}'.`,
+      );
+    }
+    const action = advance.status === 'approved' ? 'disburse' : 'recover';
+    const next = advance.status === 'approved' ? 'disbursed' : 'recovered';
+    const updated = await this.runPayout(advance, { ...advance, status: next }, action);
+    await this.repo.saveAdvance(updated);
+    return updated;
+  }
+
+  private async runPayout(
+    advance: FuelAdvance,
+    updated: FuelAdvance,
+    action: 'disburse' | 'recover',
+  ): Promise<FuelAdvance> {
+    const operator = await this.repo.getOperator(advance.operatorId);
+    const request = {
+      advanceId: advance.id,
+      operatorId: advance.operatorId,
+      amountEtb: advance.amountEtb,
+      phone: operator?.phone ?? '',
+      channel: advance.channel,
+    };
+    const adapter = this.payouts[advance.channel];
+    const payout =
+      action === 'disburse' ? await adapter.disburse(request) : await adapter.recover(request);
+    const attempts = (advance.payoutAttempts ?? 0) + 1;
+    if (!payout.success) {
+      const error = `${advance.channel} payout failed: ${payout.error ?? 'unknown error'}`;
+      await this.repo.saveAdvance({
+        ...advance,
+        payoutAttempts: attempts,
+        lastPayoutError: error,
+      });
+      throw new DomainError('conflict', error);
+    }
+    return {
+      ...updated,
+      payoutReference: payout.reference,
+      payoutAttempts: attempts,
+      lastPayoutError: undefined,
+    };
+  }
+
+  async createInvoice(input: NewInvoiceInput): Promise<VatInvoice> {
+    const shipment = await this.getShipment(input.shipmentId);
+    if (shipment.status !== 'delivered') {
+      throw new DomainError(
+        'conflict',
+        'Invoices can only be issued for delivered shipments.',
+      );
+    }
+    const load = await this.getLoad(shipment.loadId);
+    const vat = computeVat(load.offeredPriceEtb);
+    const invoice: VatInvoice = {
+      id: crypto.randomUUID(),
+      shipmentId: shipment.id,
+      shipperTin: input.shipperTin,
+      operatorTin: input.operatorTin,
+      subtotalEtb: vat.subtotalEtb,
+      vatEtb: vat.vatEtb,
+      totalEtb: vat.totalEtb,
+      issuedAt: new Date().toISOString(),
+    };
+    await this.repo.saveInvoice(invoice);
+    return invoice;
+  }
+
+  async getInvoice(id: string): Promise<VatInvoice> {
+    const invoice = await this.repo.getInvoice(id);
+    if (!invoice) {
+      throw new DomainError('not_found', 'Invoice not found.');
+    }
+    return invoice;
+  }
+
+  async findShipment(shipmentId: string): Promise<Shipment | undefined> {
+    return this.repo.getShipment(shipmentId);
+  }
+
+  async findLatestShipment(): Promise<Shipment | undefined> {
+    return this.repo.latestShipment();
+  }
+
+  async findLatestLoad(): Promise<Load | undefined> {
+    return this.repo.latestLoad();
+  }
+
+  async counterOffer(loadId: string, operatorId: string, priceEtb: number): Promise<Load> {
+    const load = await this.getLoad(loadId);
+    await this.getOperator(operatorId);
+    if (load.status !== 'open') {
+      throw new DomainError('conflict', `Load is ${load.status}, not open.`);
+    }
+    if (!Number.isFinite(priceEtb) || priceEtb <= 0) {
+      throw new DomainError('validation', 'Counter offer must be a positive number.');
+    }
+    const updated: Load = { ...load, counterOfferEtb: priceEtb, counterOfferBy: operatorId };
+    await this.repo.saveLoad(updated);
+    void this.webhooks?.dispatch('load.counter_offered', {
+      load: updated,
+      operatorId,
+      priceEtb,
+    });
+    return updated;
+  }
+
+  async acceptCounterOffer(loadId: string, shipperId?: string): Promise<Load> {
+    const load = await this.getLoad(loadId);
+    if (shipperId !== undefined && load.shipperId !== shipperId) {
+      throw new DomainError('conflict', 'You can only accept offers on your own loads.');
+    }
+    if (load.status !== 'open') {
+      throw new DomainError('conflict', `Load is ${load.status}, not open.`);
+    }
+    if (load.counterOfferEtb === undefined) {
+      throw new DomainError('conflict', 'No counter offer to accept.');
+    }
+    const updated: Load = {
+      ...load,
+      offeredPriceEtb: load.counterOfferEtb,
+      counterOfferEtb: undefined,
+      counterOfferBy: undefined,
+    };
+    await this.repo.saveLoad(updated);
+    void this.webhooks?.dispatch('load.price_accepted', {
+      load: updated,
+      priceEtb: updated.offeredPriceEtb,
+    });
+    return updated;
+  }
+
+  async fleetOverview(): Promise<FleetEntry[]> {
+    const [operators, shipments, loads] = await Promise.all([
+      this.repo.listOperators(),
+      this.repo.listShipments(),
+      this.repo.listLoads(),
+    ]);
+    const loadById = new Map(loads.map((l) => [l.id, l]));
+    return operators.map((operator) => {
+      const active = shipments
+        .filter(
+          (s) =>
+            s.operatorId === operator.id &&
+            (s.status === 'assigned' || s.status === 'in_transit'),
+        )
+        .sort((a, b) => b.assignedAt.localeCompare(a.assignedAt))[0];
+      const load = active ? loadById.get(active.loadId) : undefined;
+      return {
+        operatorId: operator.id,
+        name: operator.name,
+        truckPlate: operator.truckPlate,
+        status: operator.status,
+        currentCity: (operator.lastDropOffCity ?? operator.currentCity).name,
+        kycStatus: operator.kycDecision ?? 'pending',
+        activeShipment: active
+          ? {
+              shipmentId: active.id,
+              status: active.status,
+              origin: load?.origin.name ?? '',
+              destination: load?.destination.name ?? '',
+            }
+          : undefined,
+      };
+    });
+  }
+
+  async listOperators(): Promise<TruckOperator[]> {
+    return this.repo.listOperators();
+  }
+
+  async listLoads(): Promise<Load[]> {
+    return this.repo.listLoads();
+  }
+
+  async listShipments(): Promise<Shipment[]> {
+    return this.repo.listShipments();
+  }
+
+  async listAdvances(): Promise<FuelAdvance[]> {
+    return this.repo.listAdvances();
+  }
+
+  async listInvoices(): Promise<VatInvoice[]> {
+    return this.repo.listInvoices();
+  }
+
+  async listAdvancesFor(operatorId: string): Promise<FuelAdvance[]> {
+    const advances = (await this.repo.listAdvances()).filter(
+      (a) => a.operatorId === operatorId,
+    );
+    return advances.sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
+  }
+
+  async listInvoicesFor(shipperId: string): Promise<VatInvoice[]> {
+    const [invoices, shipments, loads] = await Promise.all([
+      this.repo.listInvoices(),
+      this.repo.listShipments(),
+      this.repo.listLoads(),
+    ]);
+    const shipperByShipment = new Map(
+      shipments.map((s) => [s.id, loads.find((l) => l.id === s.loadId)?.shipperId]),
+    );
+    return invoices
+      .filter((invoice) => shipperByShipment.get(invoice.shipmentId) === shipperId)
+      .sort((a, b) => b.issuedAt.localeCompare(a.issuedAt));
+  }
+
+  async ratingForShipment(shipmentId: string): Promise<Rating | undefined> {
+    return this.repo.ratingByShipment(shipmentId);
+  }
+
+  private async getLoad(id: string): Promise<Load> {
+    const load = await this.repo.getLoad(id);
+    if (!load) throw new DomainError('not_found', 'Load not found.');
+    return load;
+  }
+
+  private async getOperator(id: string): Promise<TruckOperator> {
+    const operator = await this.repo.getOperator(id);
+    if (!operator) throw new DomainError('not_found', 'Operator not found.');
+    return operator;
+  }
+
+  private async getShipment(id: string): Promise<Shipment> {
+    const shipment = await this.repo.getShipment(id);
+    if (!shipment) throw new DomainError('not_found', 'Shipment not found.');
+    return shipment;
+  }
+}

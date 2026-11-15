@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  afro-link-domestic:
+    name: Afro-Link Domestic (test + typecheck)
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgres://afrolink:afrolink@localhost:5432/afrolink_test
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: afrolink
+          POSTGRES_PASSWORD: afrolink
+          POSTGRES_DB: afrolink_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: afro-link-domestic
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: afro-link-domestic/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
