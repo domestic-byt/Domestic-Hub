@@ -310,3 +310,31 @@ button.danger {
   border-color: #b91c1c;
   color: #b91c1c;
 }
+
+.hero {
+  padding: 2.5rem 1.5rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent, #0f766e), #134e4a);
+  color: #fff;
+  margin-bottom: 1rem;
+}
+
+.hero h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.8rem;
+}
+
+.hero .tagline {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.hero button {
+  background: #fff;
+  color: #134e4a;
+  border: none;
+  font-weight: 600;
+}
+
+.card.metric[onclick] {
+  cursor: pointer;
+}

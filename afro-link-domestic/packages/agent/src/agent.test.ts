@@ -354,6 +354,7 @@ class FakeStore implements AgentStore {
         totalVatEtb: invoices.reduce((sum, i) => sum + i.vatEtb, 0),
         totalWithVatEtb: invoices.reduce((sum, i) => sum + i.totalEtb, 0),
       },
+      failedPayouts: [],
     };
   }
 

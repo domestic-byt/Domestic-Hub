@@ -797,6 +797,16 @@ describe('marketplace api', async () => {
       expect(stored.payoutReference).toBeUndefined();
       expect(stored.payoutAttempts).toBe(1);
       expect(stored.lastPayoutError).toMatch(/telebirr payout failed/);
+
+      const metricsRes = await app.inject({ method: 'GET', url: '/metrics' });
+      expect(metricsRes.statusCode).toBe(200);
+      const failed = metricsRes.json().failedPayouts.find(
+        (f: { advanceId: string }) => f.advanceId === advance.id,
+      );
+      expect(failed).toBeDefined();
+      expect(failed.channel).toBe('telebirr');
+      expect(failed.attempts).toBe(1);
+      expect(failed.error).toMatch(/telebirr payout failed/);
     } finally {
       await app.close();
     }

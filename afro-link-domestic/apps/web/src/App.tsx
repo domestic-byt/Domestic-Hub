@@ -59,10 +59,10 @@ function city(name: string) {
   return { name, ...coords };
 }
 
-type Tab = 'shipper' | 'driver' | 'track' | 'agent' | 'metrics' | 'kyc';
+type Tab = 'landing' | 'shipper' | 'driver' | 'track' | 'agent' | 'metrics' | 'kyc';
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('shipper');
+  const [tab, setTab] = useState<Tab>('landing');
   const [lang, setLang] = useState<Lang>(loadLang);
   const [token, setToken] = useState(getAuthToken() ?? '');
   const [online, setOnline] = useState(true);
@@ -162,6 +162,7 @@ export default function App() {
         <nav>
           {(
             [
+              ['landing', t.tabHome],
               ['shipper', t.tabShipper],
               ['driver', t.tabDriver],
               ['track', t.tabTrack],
@@ -177,14 +178,44 @@ export default function App() {
         </nav>
       </header>
       <main>
+        {tab === 'landing' && <LandingPanel t={t} setTab={setTab} />}
         {tab === 'shipper' && <ShipperPanel t={t} />}
         {tab === 'driver' && <DriverPanel t={t} />}
         {tab === 'track' && <TrackPanel t={t} />}
         {tab === 'agent' && <AgentPanel t={t} lang={lang} />}
-        {tab === 'metrics' && <MetricsPanel t={t} />}
+        {tab === 'metrics' && <MetricsPanel t={t} setTab={setTab} />}
         {tab === 'kyc' && <KycPanel t={t} />}
       </main>
     </div>
+  );
+}
+
+function LandingPanel({ t, setTab }: { t: Strings; setTab: (tab: Tab) => void }) {
+  const props = [
+    { icon: '🔁', text: t.propBackhaul, tab: 'driver' as Tab },
+    { icon: '⛽', text: t.propAdvances, tab: 'driver' as Tab },
+    { icon: '📍', text: t.propTracking, tab: 'track' as Tab },
+    { icon: '🧾', text: t.propInvoices, tab: 'shipper' as Tab },
+  ];
+  return (
+    <section>
+      <div className="hero">
+        <h1>{t.heroHeading}</h1>
+        <p className="tagline">{t.tagline}</p>
+        <div className="row">
+          <button onClick={() => setTab('shipper')}>{t.postLoad}</button>{' '}
+          <button onClick={() => setTab('agent')}>{t.tabAgent}</button>
+        </div>
+      </div>
+      <div className="metrics-grid">
+        {props.map((p) => (
+          <div className="card metric" key={p.text} onClick={() => setTab(p.tab)}>
+            <strong>{p.icon}</strong>
+            <span>{p.text}</span>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -1148,7 +1179,7 @@ function TrackPanel({ t }: { t: Strings }) {
   );
 }
 
-function MetricsPanel({ t }: { t: Strings }) {
+function MetricsPanel({ t, setTab }: { t: Strings; setTab: (tab: Tab) => void }) {
   const [metrics, setMetrics] = useState<MarketplaceMetrics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1213,6 +1244,21 @@ function MetricsPanel({ t }: { t: Strings }) {
             <em>{metrics.vat.invoiceCount} · {metrics.vat.totalWithVatEtb} ETB</em>
           </div>
         </div>
+      )}
+      {metrics && (
+        <>
+          <h2>{t.payoutFailures}</h2>
+          {metrics.failedPayouts.length === 0 && <p className="muted">{t.noPayoutFailures}</p>}
+          {metrics.failedPayouts.map((f) => (
+            <div className="card" key={f.advanceId}>
+              <strong>⛔ {f.amountEtb.toLocaleString()} ETB · {f.channel}</strong>{' '}
+              <span className="muted">
+                {f.status} · {f.attempts}× · {f.error} · {f.operatorId}
+              </span>{' '}
+              <button onClick={() => setTab('driver')}>{t.tabDriver}</button>
+            </div>
+          ))}
+        </>
       )}
       {!metrics && !error && busy && <p className="muted">…</p>}
       {error && <p className="muted">{t.metricsAdminNote}</p>}

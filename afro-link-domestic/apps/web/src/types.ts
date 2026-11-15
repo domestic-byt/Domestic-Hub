@@ -192,6 +192,16 @@ export interface OperatorEarnings {
   netEtb: number;
 }
 
+export interface FailedPayout {
+  advanceId: string;
+  operatorId: string;
+  channel: string;
+  status: string;
+  amountEtb: number;
+  attempts: number;
+  error: string;
+}
+
 export interface MarketplaceMetrics {
   loads: { total: number; open: number; assigned: number; delivered: number };
   shipments: { total: number; delivered: number };
@@ -203,6 +213,7 @@ export interface MarketplaceMetrics {
     byChannel: { telebirr: number; cbe_birr: number };
   };
   vat: { invoiceCount: number; totalVatEtb: number; totalWithVatEtb: number };
+  failedPayouts: FailedPayout[];
 }
 
 export interface AgentResult {

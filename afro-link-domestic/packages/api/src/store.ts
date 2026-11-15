@@ -471,6 +471,19 @@ export class MarketplaceStore implements AgentStore {
     for (const advance of disbursed) {
       byChannel[advance.channel] += advance.amountEtb;
     }
+    const failedPayouts = advances
+      .filter((a) => typeof a.lastPayoutError === 'string' && a.lastPayoutError !== '')
+      .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt))
+      .slice(0, 10)
+      .map((a) => ({
+        advanceId: a.id,
+        operatorId: a.operatorId,
+        channel: a.channel,
+        status: a.status,
+        amountEtb: a.amountEtb,
+        attempts: a.payoutAttempts ?? 1,
+        error: a.lastPayoutError!,
+      }));
     return {
       loads: {
         total: loads.length,
@@ -495,6 +508,7 @@ export class MarketplaceStore implements AgentStore {
         totalVatEtb: invoices.reduce((sum, i) => sum + i.vatEtb, 0),
         totalWithVatEtb: invoices.reduce((sum, i) => sum + i.totalEtb, 0),
       },
+      failedPayouts,
     };
   }
 
