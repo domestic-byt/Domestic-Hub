@@ -229,8 +229,12 @@ export class DomesticAgent {
     memory.lastLoadId = loadId;
     memory.lastShipmentId = shipment.id;
     memory.lastOperatorId = operatorId;
+    const returnLoads = (await this.store.rankReturnLoads(operatorId)).slice(0, 1);
+    const handoff = returnLoads[0]
+      ? ` Once delivered, a return load is waiting: ${returnLoads[0].origin} → ${returnLoads[0].destination} for ${returnLoads[0].offeredPriceEtb} ETB — ask "any return loads for me?".`
+      : ' The driver can now request a fuel advance, e.g. "request an 8000 birr telebirr advance".';
     return {
-      reply: `Shipment ${shipment.id} assigned: load ${loadId} → operator ${operatorId}. The driver can now request a fuel advance, e.g. "request an 8000 birr telebirr advance".`,
+      reply: `Shipment ${shipment.id} assigned: load ${loadId} → operator ${operatorId}. The driver can now request a fuel advance, e.g. "request an 8000 birr telebirr advance".${handoff}`,
       data: shipment,
     };
   }

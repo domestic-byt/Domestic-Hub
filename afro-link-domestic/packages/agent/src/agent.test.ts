@@ -593,6 +593,19 @@ describe('DomesticAgent', () => {
     expect(result.reply).toContain('8000 ETB');
   });
 
+  it('suggests a fuel advance and a return load right after assigning', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+    await agent.handle('Post 10 tons from Addis Ababa to Bahir Dar for 15000 birr');
+    await agent.handle('Post 20 tons from Jimma to Addis Ababa for 40000 birr');
+
+    const result = await agent.handle('assign the top match');
+    expect(result.intent).toBe('assign_truck');
+    expect(result.reply).toContain('telebirr advance');
+    expect(result.reply).toMatch(/return load/i);
+    expect(result.reply).toContain('Bahir Dar');
+  });
+
   it('reports advance status for the signed-in operator', async () => {
     const store = seededStore();
     const agent = new DomesticAgent(store);

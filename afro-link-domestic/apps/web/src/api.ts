@@ -10,6 +10,7 @@ import type {
   Load,
   MarketplaceMetrics,
   Operator,
+  OperatorDashboard,
   OperatorEarnings,
   OperatorMatch,
   PriceSuggestion,
@@ -163,6 +164,8 @@ export const api = {
     request<VatInvoice[]>(`/shippers/${shipperId}/invoices`, 'GET'),
   listOperatorAdvances: (operatorId: string) =>
     request<FuelAdvance[]>(`/operators/${operatorId}/advances`, 'GET'),
+  getOperatorDashboard: (operatorId: string) =>
+    request<OperatorDashboard>(`/operators/${operatorId}/dashboard`, 'GET'),
 
   getMetrics: () => request<MarketplaceMetrics>('/metrics', 'GET'),
 

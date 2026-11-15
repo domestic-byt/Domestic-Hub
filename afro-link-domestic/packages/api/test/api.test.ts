@@ -1260,6 +1260,20 @@ describe('domestic ai agent endpoint', async () => {
     expect(advancesRes.statusCode).toBe(200);
     expect(advancesRes.json().some((a: { id: string }) => a.id === advanceRes.json().id)).toBe(true);
 
+    const dashboardRes = await app.inject({
+      method: 'GET',
+      url: `/operators/${operator.id}/dashboard`,
+    });
+    expect(dashboardRes.statusCode).toBe(200);
+    const dashboard = dashboardRes.json();
+    expect(dashboard.operatorId).toBe(operator.id);
+    expect(dashboard.activeShipment.shipmentId).toBe(shipment.id);
+    expect(dashboard.activeShipment.status).toBe('assigned');
+    expect(dashboard.activeShipment.origin).toBe('Jimma');
+    expect(dashboard.activeAdvance.id).toBe(advanceRes.json().id);
+    expect(dashboard.outstandingAdvanceEtb).toBe(3000);
+    expect(Array.isArray(dashboard.returnLoads)).toBe(true);
+
     await app.inject({
       method: 'POST',
       url: `/shipments/${shipment.id}/events`,
@@ -1282,6 +1296,16 @@ describe('domestic ai agent endpoint', async () => {
     expect(
       shipperInvoicesRes.json().some((i: { id: string }) => i.id === invoice.id),
     ).toBe(true);
+
+    const viewRes = await app.inject({ method: 'GET', url: `/invoices/${invoice.id}/view` });
+    expect(viewRes.statusCode).toBe(200);
+    expect(viewRes.headers['content-type']).toContain('text/html');
+    expect(viewRes.body).toContain('VAT (15%)');
+    expect(viewRes.body).toContain('23,000 ETB');
+    expect(viewRes.body).toContain('TIN-INV-1');
+
+    const viewMissingRes = await app.inject({ method: 'GET', url: '/invoices/nope/view' });
+    expect(viewMissingRes.statusCode).toBe(404);
 
     const ratingRes = await app.inject({
       method: 'POST',

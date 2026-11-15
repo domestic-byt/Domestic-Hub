@@ -14,6 +14,7 @@ import {
   TrackingEventKind,
   TruckOperator,
   MarketplaceMetrics,
+  OperatorDashboard,
   OperatorEarnings,
   VatInvoice,
   computeVat,
@@ -324,6 +325,49 @@ export class MarketplaceStore implements AgentStore {
     weightTons: number;
   }): Promise<PriceSuggestion | null> {
     return suggestPrice(await this.repo.listLoads(), input);
+  }
+
+  async operatorDashboard(operatorId: string): Promise<OperatorDashboard> {
+    const operator = await this.getOperator(operatorId);
+    const [shipments, loads, earnings, returnLoads, advances] = await Promise.all([
+      this.repo.listShipments(),
+      this.repo.listLoads(),
+      this.getEarnings(operatorId),
+      this.rankReturnLoads(operatorId),
+      this.repo.listAdvances(),
+    ]);
+    const loadById = new Map(loads.map((l) => [l.id, l]));
+    const active = shipments
+      .filter(
+        (s) =>
+          s.operatorId === operatorId && (s.status === 'assigned' || s.status === 'in_transit'),
+      )
+      .sort((a, b) => b.assignedAt.localeCompare(a.assignedAt))[0];
+    const activeAdvance = advances
+      .filter(
+        (a) =>
+          a.operatorId === operatorId &&
+          !['recovered', 'rejected', 'defaulted'].includes(a.status),
+      )
+      .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt))[0];
+    return {
+      operatorId,
+      operatorName: operator.name,
+      currentCity: operator.currentCity.name,
+      activeShipment: active
+        ? {
+            shipmentId: active.id,
+            status: active.status,
+            origin: loadById.get(active.loadId)?.origin.name ?? '',
+            destination: loadById.get(active.loadId)?.destination.name ?? '',
+          }
+        : undefined,
+      activeAdvance,
+      outstandingAdvanceEtb: earnings.outstandingAdvanceEtb,
+      deliveredShipments: earnings.deliveredShipments,
+      netEtb: earnings.netEtb,
+      returnLoads: returnLoads.slice(0, 3),
+    };
   }
 
   async getEarnings(operatorId: string): Promise<OperatorEarnings> {

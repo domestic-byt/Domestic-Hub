@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, getAuthToken, setAuthToken } from './api';
+import { api, apiUrl, getAuthToken, setAuthToken } from './api';
 import { flushOutbox, outboxCount } from './outbox';
 import { usePwaInstall } from './usePwaInstall';
 import { LANGUAGES, Lang, loadLang, saveLang, STRINGS, Strings } from './i18n';
@@ -11,6 +11,7 @@ import type {
   Webhook,
   WebhookDelivery,
   MarketplaceMetrics,
+  OperatorDashboard,
   OperatorEarnings,
   OperatorMatch,
   PriceSuggestion,
@@ -472,6 +473,9 @@ function ShipperPanel({ t }: { t: Strings }) {
         invoices.map((inv) => (
           <div className="card" key={inv.id}>
             <strong>{inv.id}</strong>{' '}
+            <a href={apiUrl(`/invoices/${inv.id}/view`)} target="_blank" rel="noreferrer">
+              {t.invoiceView}
+            </a>{' '}
             <span className="muted">
               {t.shipmentId} {inv.shipmentId} · {inv.subtotalEtb} + {inv.vatEtb} VAT ={' '}
               {inv.totalEtb} ETB · {new Date(inv.issuedAt).toLocaleString()}
@@ -513,6 +517,8 @@ function DriverPanel({ t }: { t: Strings }) {
     location: '',
   });
   const [eventSaved, setEventSaved] = useState(false);
+  const [dashOperator, setDashOperator] = useState('');
+  const [dashboard, setDashboard] = useState<OperatorDashboard | null>(null);
   const [docsForm, setDocsForm] = useState({
     operatorId: '',
     licenseNumber: '',
@@ -609,6 +615,17 @@ function DriverPanel({ t }: { t: Strings }) {
     }
   }
 
+  async function loadDashboard(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      setDashboard(await api.getOperatorDashboard(dashOperator));
+    } catch (e) {
+      setDashboard(null);
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   async function addEvent(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -667,8 +684,61 @@ function DriverPanel({ t }: { t: Strings }) {
 
   return (
     <section>
-      <h2>{t.registerTruck}</h2>
+      <h2>{t.dashboardHeading}</h2>
       <ErrorBox error={error} />
+      <form onSubmit={loadDashboard} className="card row">
+        <label>
+          {t.operatorId}
+          <select value={dashOperator} onChange={(e) => setDashOperator(e.target.value)}>
+            <option value="">—</option>
+            {operators.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name} ({o.currentCity.name})
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="submit" disabled={!dashOperator}>
+          {t.viewDashboard}
+        </button>
+      </form>
+      {dashboard && (
+        <div className="card metric">
+          <strong>{dashboard.netEtb.toLocaleString()} ETB</strong>
+          <span>{t.netEarnings}</span>
+          <em>
+            {t.currentCity}: {dashboard.currentCity} · {dashboard.deliveredShipments}{' '}
+            {t.delivered} · {t.outstandingAdvances}{' '}
+            {dashboard.outstandingAdvanceEtb.toLocaleString()}
+          </em>
+          {dashboard.activeShipment ? (
+            <em>
+              {t.dashboardActiveShipment}: {dashboard.activeShipment.origin} →{' '}
+              {dashboard.activeShipment.destination} ({dashboard.activeShipment.status}) ·{' '}
+              {dashboard.activeShipment.shipmentId}
+            </em>
+          ) : (
+            <em className="muted">{t.dashboardNoShipment}</em>
+          )}
+          {dashboard.activeAdvance && (
+            <em>
+              {t.fuelAdvance}: {dashboard.activeAdvance.amountEtb.toLocaleString()} ETB ·{' '}
+              {dashboard.activeAdvance.status}
+              {dashboard.activeAdvance.lastPayoutError
+                ? ` · ${dashboard.activeAdvance.lastPayoutError}`
+                : ''}
+            </em>
+          )}
+          {dashboard.returnLoads.length > 0 && (
+            <em>
+              {t.returnTrips}: {dashboard.returnLoads[0]!.origin} →{' '}
+              {dashboard.returnLoads[0]!.destination} ({dashboard.returnLoads[0]!.offeredPriceEtb.toLocaleString()} ETB)
+            </em>
+          )}
+        </div>
+      )}
+
+      <h2>{t.registerTruck}</h2>
       <form onSubmit={register} className="card row">
         <label>
           {t.name}

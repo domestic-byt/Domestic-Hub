@@ -1,3 +1,5 @@
+import type { ReturnLoadMatch } from './backhaul';
+
 export interface City {
   name: string;
   lat: number;
@@ -118,6 +120,23 @@ export interface OperatorEarnings {
   grossEtb: number;
   outstandingAdvanceEtb: number;
   netEtb: number;
+}
+
+export interface OperatorDashboard {
+  operatorId: string;
+  operatorName: string;
+  currentCity: string;
+  activeShipment?: {
+    shipmentId: string;
+    status: ShipmentStatus;
+    origin: string;
+    destination: string;
+  };
+  activeAdvance?: FuelAdvance;
+  outstandingAdvanceEtb: number;
+  deliveredShipments: number;
+  netEtb: number;
+  returnLoads: ReturnLoadMatch[];
 }
 
 export interface MarketplaceMetrics {

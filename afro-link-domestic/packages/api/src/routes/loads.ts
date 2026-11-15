@@ -61,6 +61,16 @@ export async function operatorRoutes(app: FastifyInstance, store: MarketplaceSto
     return rating ?? { average: null, count: 0 };
   });
 
+  app.get('/operators/:id/dashboard', async (request, reply) => {
+    if (guard(request, reply, 'operator', 'admin')) return;
+    const { id } = request.params as { id: string };
+    const actor = request.actor;
+    if (actor?.role === 'operator' && actor.subject !== id) {
+      return reply.code(403).send({ error: 'Operators can only view their own dashboard.' });
+    }
+    return run(reply, () => store.operatorDashboard(id));
+  });
+
   app.get('/operators/:id/earnings', async (request, reply) => {
     if (guard(request, reply, 'operator', 'admin')) return;
     const { id } = request.params as { id: string };

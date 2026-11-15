@@ -166,6 +166,23 @@ export interface PriceSuggestion {
   basis: 'lane' | 'network';
 }
 
+export interface OperatorDashboard {
+  operatorId: string;
+  operatorName: string;
+  currentCity: string;
+  activeShipment?: {
+    shipmentId: string;
+    status: string;
+    origin: string;
+    destination: string;
+  };
+  activeAdvance?: FuelAdvance;
+  outstandingAdvanceEtb: number;
+  deliveredShipments: number;
+  netEtb: number;
+  returnLoads: ReturnLoadMatch[];
+}
+
 export interface OperatorEarnings {
   operatorId: string;
   operatorName: string;

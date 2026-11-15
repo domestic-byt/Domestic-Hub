@@ -177,6 +177,27 @@ describe('authenticated api', async () => {
     expect(advancesOwn.statusCode).toBe(200);
     expect(advancesOwn.json()).toEqual([]);
 
+    const dashForbidden = await app.inject({
+      method: 'GET',
+      url: '/operators/someone-else/dashboard',
+      headers: authed('operator', 'op-me'),
+    });
+    expect(dashForbidden.statusCode).toBe(403);
+
+    const dashShipperForbidden = await app.inject({
+      method: 'GET',
+      url: '/operators/op-me/dashboard',
+      headers: authed('shipper'),
+    });
+    expect(dashShipperForbidden.statusCode).toBe(403);
+
+    const dashOwn = await app.inject({
+      method: 'GET',
+      url: '/operators/op-me/dashboard',
+      headers: authed('operator', 'op-me'),
+    });
+    expect(dashOwn.statusCode).toBe(404);
+
     const invoicesForbidden = await app.inject({
       method: 'GET',
       url: '/shippers/someone-else/invoices',
