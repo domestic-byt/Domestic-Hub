@@ -30,6 +30,9 @@ export interface KycReview {
   truckPlate: string;
   licenseExpiry?: string;
   insuranceExpiry?: string;
+  licenseNumber?: string;
+  licenseDocUrl?: string;
+  insuranceDocUrl?: string;
   decision: KycDecision;
   status: KycStatus;
   issues: string[];
@@ -80,6 +83,9 @@ export function kycQueue(operators: TruckOperator[], now: Date = new Date()): Ky
       truckPlate: o.truckPlate,
       licenseExpiry: o.licenseExpiry,
       insuranceExpiry: o.insuranceExpiry,
+      licenseNumber: o.licenseNumber,
+      licenseDocUrl: o.licenseDocUrl,
+      insuranceDocUrl: o.insuranceDocUrl,
       decision: o.kycDecision ?? ('pending' as KycDecision),
       status: kycStatus(o, now),
       issues: kycIssues(o, now),

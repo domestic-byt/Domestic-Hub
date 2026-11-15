@@ -57,6 +57,9 @@ export interface KycReview {
   truckPlate: string;
   licenseExpiry?: string;
   insuranceExpiry?: string;
+  licenseNumber?: string;
+  licenseDocUrl?: string;
+  insuranceDocUrl?: string;
   decision: 'pending' | 'approved' | 'rejected';
   status: 'unverified' | 'valid' | 'expired' | 'rejected';
   issues: string[];

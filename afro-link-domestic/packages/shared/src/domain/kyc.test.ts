@@ -43,6 +43,20 @@ describe('kyc review', () => {
     expect(queue.find((r) => r.operatorId === 'rejected')!.status).toBe('rejected');
   });
 
+  it('carries submitted documents into the review queue', () => {
+    const queue = kycQueue([
+      operator('docs', 'Doc Op', {
+        licenseNumber: 'DL-77123',
+        licenseDocUrl: 'https://docs.example/license.pdf',
+        insuranceDocUrl: 'https://docs.example/insurance.pdf',
+      }),
+    ]);
+    const review = queue[0]!;
+    expect(review.licenseNumber).toBe('DL-77123');
+    expect(review.licenseDocUrl).toBe('https://docs.example/license.pdf');
+    expect(review.insuranceDocUrl).toBe('https://docs.example/insurance.pdf');
+  });
+
   it('warns about documents expiring within the horizon', () => {
     const now = new Date('2026-06-15T12:00:00Z');
     expect(

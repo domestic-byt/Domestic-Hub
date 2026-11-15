@@ -507,6 +507,12 @@ function DriverPanel({ t }: { t: Strings }) {
   const [earnings, setEarnings] = useState<OperatorEarnings | null>(null);
   const [podForm, setPodForm] = useState({ shipmentId: '', receiverName: '', note: '' });
   const [podSaved, setPodSaved] = useState(false);
+  const [eventForm, setEventForm] = useState({
+    shipmentId: '',
+    kind: 'in_transit',
+    location: '',
+  });
+  const [eventSaved, setEventSaved] = useState(false);
   const [docsForm, setDocsForm] = useState({
     operatorId: '',
     licenseNumber: '',
@@ -600,6 +606,23 @@ function DriverPanel({ t }: { t: Strings }) {
     } catch (e) {
       setEarnings(null);
       setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function addEvent(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setEventSaved(false);
+    try {
+      await api.addTrackingEvent(
+        eventForm.shipmentId.trim(),
+        eventForm.kind,
+        eventForm.location ? city(eventForm.location) : undefined,
+      );
+      setEventSaved(true);
+      setEventForm({ shipmentId: '', kind: 'in_transit', location: '' });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -863,6 +886,45 @@ function DriverPanel({ t }: { t: Strings }) {
         </button>
       </form>
       {docsSaved && <p className="auth-ok">{t.kycDocsSaved}</p>}
+
+      <h2>{t.trackUpdateHeading}</h2>
+      <form onSubmit={addEvent} className="card row">
+        <label>
+          {t.shipmentId}
+          <input
+            value={eventForm.shipmentId}
+            onChange={(e) => setEventForm({ ...eventForm, shipmentId: e.target.value })}
+          />
+        </label>
+        <label>
+          {t.eventKind}
+          <select
+            value={eventForm.kind}
+            onChange={(e) => setEventForm({ ...eventForm, kind: e.target.value })}
+          >
+            <option value="picked_up">picked_up</option>
+            <option value="in_transit">in_transit</option>
+            <option value="at_checkpoint">at_checkpoint</option>
+            <option value="delivered">delivered</option>
+          </select>
+        </label>
+        <label>
+          {t.eventLocationOptional}
+          <select
+            value={eventForm.location}
+            onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })}
+          >
+            <option value="">—</option>
+            {CITIES.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+        </label>
+        <button type="submit" disabled={!eventForm.shipmentId}>
+          {t.registerBtn}
+        </button>
+      </form>
+      {eventSaved && <p className="auth-ok">{t.eventSaved}</p>}
 
       <h2>{t.podHeading}</h2>
       <form onSubmit={capture} className="card row">
@@ -1358,6 +1420,25 @@ function KycCard({
             <li key={warning}>⏳ {warning}</li>
           ))}
         </ul>
+      )}
+      {(review.licenseNumber || review.licenseDocUrl || review.insuranceDocUrl) && (
+        <div className="muted">
+          {review.licenseNumber && <div>🪪 {review.licenseNumber}</div>}
+          {review.licenseDocUrl && (
+            <div>
+              <a href={review.licenseDocUrl} target="_blank" rel="noreferrer">
+                {t.kycDocUrl}
+              </a>
+            </div>
+          )}
+          {review.insuranceDocUrl && (
+            <div>
+              <a href={review.insuranceDocUrl} target="_blank" rel="noreferrer">
+                {t.kycInsuranceDocUrl}
+              </a>
+            </div>
+          )}
+        </div>
       )}
       <label>
         {t.licenseExpiry}{' '}
