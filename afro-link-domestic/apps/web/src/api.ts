@@ -5,6 +5,8 @@ import type {
   City,
   FuelAdvance,
   KycReview,
+  Webhook,
+  WebhookDelivery,
   Load,
   MarketplaceMetrics,
   Operator,
@@ -168,6 +170,12 @@ export const api = {
     },
   ) => request<Operator>(`/operators/${operatorId}/kyc/documents`, 'POST', input),
   getAuditLog: () => request<AuditEntry[]>('/admin/audit', 'GET'),
+
+  listWebhooks: () => request<Webhook[]>('/webhooks', 'GET'),
+  getDeliveries: (webhookId: string) =>
+    request<WebhookDelivery[]>(`/webhooks/${webhookId}/deliveries`, 'GET'),
+  retryDelivery: (deliveryId: string) =>
+    request<WebhookDelivery>(`/webhooks/deliveries/${deliveryId}/retry`, 'POST'),
   reviewKyc: (
     operatorId: string,
     decision: string,

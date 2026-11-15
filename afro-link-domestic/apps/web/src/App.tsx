@@ -8,6 +8,8 @@ import type {
   AuditEntry,
   KycReview,
   Load,
+  Webhook,
+  WebhookDelivery,
   MarketplaceMetrics,
   OperatorEarnings,
   OperatorMatch,
@@ -1071,7 +1073,93 @@ function KycPanel({ t }: { t: Strings }) {
             </span>
           </div>
         ))}
+      <WebhooksSection t={t} />
     </section>
+  );
+}
+
+function WebhooksSection({ t }: { t: Strings }) {
+  const [hooks, setHooks] = useState<Webhook[] | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadHooks = useCallback(async () => {
+    setError(null);
+    try {
+      setHooks(await api.listWebhooks());
+    } catch (err) {
+      setHooks(null);
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadHooks();
+  }, [loadHooks]);
+
+  const toggle = async (id: string) => {
+    setError(null);
+    if (openId === id) {
+      setOpenId(null);
+      return;
+    }
+    try {
+      setDeliveries(await api.getDeliveries(id));
+      setOpenId(id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const retry = async (deliveryId: string) => {
+    setError(null);
+    try {
+      await api.retryDelivery(deliveryId);
+      if (openId) setDeliveries(await api.getDeliveries(openId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  return (
+    <div>
+      <h2>
+        {t.webhooksHeading}{' '}
+        <button onClick={() => void loadHooks()}>{t.refresh}</button>
+      </h2>
+      <ErrorBox error={error} />
+      {hooks && hooks.length === 0 && <p className="muted">…</p>}
+      {hooks &&
+        hooks.map((hook) => (
+          <div className="card" key={hook.id}>
+            <strong>{hook.url}</strong>{' '}
+            <span className="muted">
+              {hook.events.length > 0 ? hook.events.join(', ') : t.webhooksAllEvents}
+            </span>{' '}
+            <button onClick={() => void toggle(hook.id)}>
+              {t.deliveriesLabel}
+            </button>
+            {openId === hook.id && (
+              <div>
+                {deliveries.length === 0 && <p className="muted">…</p>}
+                {deliveries.map((d) => (
+                  <div key={d.id}>
+                    <strong>{d.ok ? `✅ ${t.deliveryOk}` : `⛔ ${t.deliveryFailed}`}</strong>{' '}
+                    <span className="muted">
+                      {d.event} · {d.ok ? d.statusCode : d.error} · {d.attemptCount}× ·{' '}
+                      {new Date(d.attemptedAt).toLocaleString()}
+                    </span>{' '}
+                    {!d.ok && (
+                      <button onClick={() => void retry(d.id)}>{t.retryDelivery}</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+    </div>
   );
 }
 

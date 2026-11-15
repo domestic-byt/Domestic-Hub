@@ -30,6 +30,27 @@ export interface AuditEntry {
   detail?: string;
 }
 
+export interface Webhook {
+  id: string;
+  url: string;
+  events: string[];
+  ownerId?: string;
+  createdAt: string;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  webhookId: string;
+  event: string;
+  url: string;
+  ok: boolean;
+  statusCode?: number;
+  error?: string;
+  attemptCount: number;
+  attemptedAt: string;
+  deliveredAt?: string;
+}
+
 export interface KycReview {
   operatorId: string;
   operatorName: string;

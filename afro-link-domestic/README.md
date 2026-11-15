@@ -142,6 +142,8 @@ Register an outbound webhook (`POST /webhooks` with `{url, events?, secret?}`) a
 
 **Document uploads & audit trail**: drivers submit KYC documents (license number, expiry dates, scanned-document URLs) from the Driver panel — any submission resets the operator to `pending` until an admin re-reviews. Admin actions (KYC decisions, webhook deletions, delivery retries, payout retries) are recorded in an append-only audit log, visible on the KYC tab and via `GET /admin/audit`.
 
+**Webhooks admin panel**: the admin tab lists registered webhooks with a Deliveries view per hook — every attempt with status/error and attempt count, and a Retry button that re-delivers a failed attempt from the stored payload.
+
 ## Web app
 
 `apps/web` ships five panels in six languages — English, Amharic (አማርኛ), Oromiffa (Afaan Oromoo), Aff-Somali (Soomaali), Tigrinya (ትግርኛ) and Kiswahili — with a language picker (persisted per browser), voice input in the agent using per-language locales (`am-ET`, `om-ET`, `so-ET`, `ti-ET`, `sw-KE`), an install prompt when the browser offers it, and offline-resilient syncing: POSTs made offline are queued and replayed on reconnect via the `online` event, a 30s retry, and the Background Sync API (`sw.js` listens for the `afrolink-flush` tag and wakes the app to flush its outbox): Shipper, Driver (incl. return-trip suggestions and fuel advances), Tracking, AI Agent, and a Metrics dashboard (`/metrics`, admin SSO token required when auth is enabled) showing the loads funnel, average deadhead km, zero-deadhead share, disbursed advances by channel, and VAT totals.
