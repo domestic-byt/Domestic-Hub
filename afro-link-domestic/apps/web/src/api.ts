@@ -172,6 +172,10 @@ export const api = {
   getAuditLog: () => request<AuditEntry[]>('/admin/audit', 'GET'),
 
   listWebhooks: () => request<Webhook[]>('/webhooks', 'GET'),
+  createWebhook: (url: string, events: string[], secret?: string) =>
+    request<Webhook>('/webhooks', 'POST', { url, events, secret }),
+  deleteWebhook: (webhookId: string) =>
+    request<{ ok: boolean }>(`/webhooks/${webhookId}`, 'DELETE'),
   getDeliveries: (webhookId: string) =>
     request<WebhookDelivery[]>(`/webhooks/${webhookId}/deliveries`, 'GET'),
   retryDelivery: (deliveryId: string) =>

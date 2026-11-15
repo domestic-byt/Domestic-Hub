@@ -142,7 +142,7 @@ Register an outbound webhook (`POST /webhooks` with `{url, events?, secret?}`) a
 
 **Document uploads & audit trail**: drivers submit KYC documents (license number, expiry dates, scanned-document URLs) from the Driver panel — any submission resets the operator to `pending` until an admin re-reviews. Admin actions (KYC decisions, webhook deletions, delivery retries, payout retries) are recorded in an append-only audit log, visible on the KYC tab and via `GET /admin/audit`.
 
-**Webhooks admin panel**: the admin tab lists registered webhooks with a Deliveries view per hook — every attempt with status/error and attempt count, and a Retry button that re-delivers a failed attempt from the stored payload.
+**Webhooks admin panel**: the admin tab lists registered webhooks with a Deliveries view per hook — every attempt with status/error and attempt count, and a Retry button that re-delivers a failed attempt from the stored payload. Admins can also register a webhook directly from the panel (URL plus an event picker — leave all unchecked to subscribe to everything) and delete hooks they no longer need.
 
 ## Web app
 

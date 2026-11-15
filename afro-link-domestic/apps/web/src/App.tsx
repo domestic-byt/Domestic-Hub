@@ -1078,11 +1078,21 @@ function KycPanel({ t }: { t: Strings }) {
   );
 }
 
+const WEBHOOK_EVENTS = [
+  'shipment.assigned',
+  'shipment.picked_up',
+  'shipment.delivered',
+  'load.cancelled',
+  'operator.kyc_expiring',
+] as const;
+
 function WebhooksSection({ t }: { t: Strings }) {
   const [hooks, setHooks] = useState<Webhook[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [newUrl, setNewUrl] = useState('');
+  const [newEvents, setNewEvents] = useState<string[]>([]);
 
   const loadHooks = useCallback(async () => {
     setError(null);
@@ -1122,6 +1132,33 @@ function WebhooksSection({ t }: { t: Strings }) {
     }
   };
 
+  const register = async () => {
+    setError(null);
+    if (newUrl.trim() === '') return;
+    try {
+      await api.createWebhook(newUrl.trim(), newEvents);
+      setNewUrl('');
+      setNewEvents([]);
+      await loadHooks();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const remove = async (id: string) => {
+    setError(null);
+    try {
+      await api.deleteWebhook(id);
+      if (openId === id) {
+        setOpenId(null);
+        setDeliveries([]);
+      }
+      await loadHooks();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   return (
     <div>
       <h2>
@@ -1129,6 +1166,37 @@ function WebhooksSection({ t }: { t: Strings }) {
         <button onClick={() => void loadHooks()}>{t.refresh}</button>
       </h2>
       <ErrorBox error={error} />
+      <div className="card">
+        <strong>{t.webhookRegister}</strong>
+        <div>
+          <input
+            type="url"
+            placeholder={t.webhookUrl}
+            value={newUrl}
+            onChange={(e) => setNewUrl(e.target.value)}
+          />
+        </div>
+        <div>
+          {WEBHOOK_EVENTS.map((event) => (
+            <label key={event} style={{ marginRight: '0.75rem' }}>
+              <input
+                type="checkbox"
+                checked={newEvents.includes(event)}
+                onChange={(e) =>
+                  setNewEvents((prev) =>
+                    e.target.checked ? [...prev, event] : prev.filter((x) => x !== event),
+                  )
+                }
+              />{' '}
+              {event}
+            </label>
+          ))}
+        </div>
+        <button onClick={() => void register()} disabled={newUrl.trim() === ''}>
+          {t.webhookRegister}
+        </button>
+        <p className="muted">{t.webhookAllEventsHint}</p>
+      </div>
       {hooks && hooks.length === 0 && <p className="muted">…</p>}
       {hooks &&
         hooks.map((hook) => (
@@ -1139,7 +1207,8 @@ function WebhooksSection({ t }: { t: Strings }) {
             </span>{' '}
             <button onClick={() => void toggle(hook.id)}>
               {t.deliveriesLabel}
-            </button>
+            </button>{' '}
+            <button onClick={() => void remove(hook.id)}>{t.webhookDelete}</button>
             {openId === hook.id && (
               <div>
                 {deliveries.length === 0 && <p className="muted">…</p>}
