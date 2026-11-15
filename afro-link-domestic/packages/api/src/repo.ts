@@ -7,6 +7,7 @@ import {
   Rating,
   VatInvoice,
   Webhook,
+  WebhookDelivery,
 } from '@afro-link/shared';
 
 export interface MarketplaceRepo {
@@ -35,6 +36,9 @@ export interface MarketplaceRepo {
   saveWebhook(webhook: Webhook): Promise<void>;
   listWebhooks(): Promise<Webhook[]>;
   deleteWebhook(id: string): Promise<void>;
+  saveDelivery(delivery: WebhookDelivery): Promise<void>;
+  getDelivery(id: string): Promise<WebhookDelivery | undefined>;
+  listDeliveries(webhookId?: string, limit?: number): Promise<WebhookDelivery[]>;
   saveRating(rating: Rating): Promise<void>;
   ratingByShipment(shipmentId: string): Promise<Rating | undefined>;
   ratingsForOperator(operatorId: string): Promise<Rating[]>;
@@ -142,6 +146,7 @@ export class InMemoryRepo implements MarketplaceRepo {
 
   webhooks = new Map<string, Webhook>();
   ratings = new Map<string, Rating>();
+  deliveries: WebhookDelivery[] = [];
 
   async saveWebhook(webhook: Webhook): Promise<void> {
     this.webhooks.set(webhook.id, webhook);
@@ -165,5 +170,25 @@ export class InMemoryRepo implements MarketplaceRepo {
 
   async deleteWebhook(id: string): Promise<void> {
     this.webhooks.delete(id);
+  }
+
+  async saveDelivery(delivery: WebhookDelivery): Promise<void> {
+    const index = this.deliveries.findIndex((d) => d.id === delivery.id);
+    if (index >= 0) {
+      this.deliveries[index] = delivery;
+    } else {
+      this.deliveries.push(delivery);
+    }
+  }
+
+  async getDelivery(id: string): Promise<WebhookDelivery | undefined> {
+    return this.deliveries.find((d) => d.id === id);
+  }
+
+  async listDeliveries(webhookId?: string, limit = 50): Promise<WebhookDelivery[]> {
+    return this.deliveries
+      .filter((d) => webhookId === undefined || d.webhookId === webhookId)
+      .slice(-limit)
+      .reverse();
   }
 }

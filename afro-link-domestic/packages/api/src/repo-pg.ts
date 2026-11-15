@@ -15,6 +15,7 @@ import {
   TruckOperator,
   VatInvoice,
   Webhook,
+  WebhookDelivery,
   WebhookEvent,
 } from '@afro-link/shared';
 import type { MarketplaceRepo } from './repo';
@@ -105,6 +106,21 @@ CREATE TABLE IF NOT EXISTS webhooks (
   events JSONB NOT NULL,
   owner_id TEXT,
   created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  seq BIGSERIAL,
+  id TEXT PRIMARY KEY,
+  webhook_id TEXT NOT NULL,
+  event TEXT NOT NULL,
+  url TEXT NOT NULL,
+  ok BOOLEAN NOT NULL,
+  status_code INTEGER,
+  error TEXT,
+  attempt_count INTEGER NOT NULL DEFAULT 1,
+  attempted_at TIMESTAMPTZ NOT NULL,
+  delivered_at TIMESTAMPTZ,
+  payload JSONB NOT NULL
 );
 `;
 
@@ -234,6 +250,22 @@ function rowToWebhook(row: Row): Webhook {
     events: (row.events as WebhookEvent[]) ?? [],
     ownerId: row.owner_id === null ? undefined : str(row.owner_id),
     createdAt: iso(row.created_at),
+  };
+}
+
+function rowToDelivery(row: Row): WebhookDelivery {
+  return {
+    id: str(row.id),
+    webhookId: str(row.webhook_id),
+    event: str(row.event) as WebhookEvent,
+    url: str(row.url),
+    ok: row.ok === true,
+    statusCode: row.status_code === null ? undefined : num(row.status_code),
+    error: row.error === null ? undefined : str(row.error),
+    attemptCount: num(row.attempt_count),
+    attemptedAt: iso(row.attempted_at),
+    deliveredAt: row.delivered_at === null ? undefined : iso(row.delivered_at),
+    payload: row.payload,
   };
 }
 
@@ -479,6 +511,48 @@ export class PgRepo implements MarketplaceRepo {
   async listWebhooks(): Promise<Webhook[]> {
     const result = await this.pool.query('SELECT * FROM webhooks ORDER BY created_at');
     return result.rows.map(rowToWebhook);
+  }
+
+  async saveDelivery(delivery: WebhookDelivery): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO webhook_deliveries (id, webhook_id, event, url, ok, status_code, error, attempt_count, attempted_at, delivered_at, payload)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       ON CONFLICT (id) DO UPDATE SET
+         ok = EXCLUDED.ok, status_code = EXCLUDED.status_code, error = EXCLUDED.error,
+         attempt_count = EXCLUDED.attempt_count, attempted_at = EXCLUDED.attempted_at,
+         delivered_at = EXCLUDED.delivered_at, payload = EXCLUDED.payload`,
+      [
+        delivery.id,
+        delivery.webhookId,
+        delivery.event,
+        delivery.url,
+        delivery.ok,
+        delivery.statusCode ?? null,
+        delivery.error ?? null,
+        delivery.attemptCount,
+        delivery.attemptedAt,
+        delivery.deliveredAt ?? null,
+        JSON.stringify(delivery.payload ?? null),
+      ],
+    );
+  }
+
+  async getDelivery(id: string): Promise<WebhookDelivery | undefined> {
+    const result = await this.pool.query('SELECT * FROM webhook_deliveries WHERE id = $1', [id]);
+    return result.rows[0] ? rowToDelivery(result.rows[0]) : undefined;
+  }
+
+  async listDeliveries(webhookId?: string, limit = 50): Promise<WebhookDelivery[]> {
+    const result = webhookId
+      ? await this.pool.query(
+          'SELECT * FROM webhook_deliveries WHERE webhook_id = $1 ORDER BY seq DESC LIMIT $2',
+          [webhookId, limit],
+        )
+      : await this.pool.query(
+          'SELECT * FROM webhook_deliveries ORDER BY seq DESC LIMIT $1',
+          [limit],
+        );
+    return result.rows.map(rowToDelivery);
   }
 
   async saveRating(rating: Rating): Promise<void> {

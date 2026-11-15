@@ -12,7 +12,7 @@ describe.skipIf(!process.env.DATABASE_URL)('pg repo', () => {
     repo = await PgRepo.connect(process.env.DATABASE_URL!);
     const cleaner = new Pool({ connectionString: process.env.DATABASE_URL });
     await cleaner.query(
-      'TRUNCATE operators, loads, shipments, tracking_events, fuel_advances, invoices, webhooks, ratings',
+      'TRUNCATE operators, loads, shipments, tracking_events, fuel_advances, invoices, webhooks, ratings, webhook_deliveries',
     );
     await cleaner.end();
   });
@@ -197,6 +197,49 @@ describe.skipIf(!process.env.DATABASE_URL)('pg repo', () => {
       rating.id,
     ]);
     expect(await repo.ratingByShipment('missing')).toBeUndefined();
+  });
+
+  it('stores webhook deliveries and lists them newest first', async () => {
+    const base = {
+      webhookId: `wh-${crypto.randomUUID()}`,
+      event: 'shipment.assigned' as const,
+      url: 'https://hooks.example/pg',
+      payload: { event: 'shipment.assigned', at: new Date().toISOString(), data: { id: 's1' } },
+    };
+    const failed = {
+      id: `del-${crypto.randomUUID()}`,
+      ...base,
+      ok: false,
+      error: 'timeout after 5000ms',
+      attemptCount: 1,
+      attemptedAt: new Date().toISOString(),
+    };
+    await repo.saveDelivery(failed);
+    const retried = {
+      ...failed,
+      ok: true,
+      error: undefined,
+      statusCode: 200,
+      attemptCount: 2,
+      attemptedAt: new Date().toISOString(),
+      deliveredAt: new Date().toISOString(),
+    };
+    await repo.saveDelivery(retried);
+    expect(await repo.getDelivery(failed.id)).toEqual(retried);
+
+    const second = {
+      id: `del-${crypto.randomUUID()}`,
+      ...base,
+      ok: true,
+      statusCode: 200,
+      attemptCount: 1,
+      attemptedAt: new Date().toISOString(),
+      deliveredAt: new Date().toISOString(),
+    };
+    await repo.saveDelivery(second);
+    const list = await repo.listDeliveries(base.webhookId);
+    expect(list.map((d) => d.id)).toEqual([second.id, failed.id]);
+    expect(await repo.listDeliveries(`wh-other-${crypto.randomUUID()}`)).toEqual([]);
   });
 
   it('stores VAT invoices', async () => {

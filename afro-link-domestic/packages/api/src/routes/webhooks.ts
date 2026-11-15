@@ -3,6 +3,7 @@ import { DomainError, Webhook, WebhookEvent } from '@afro-link/shared';
 import { MarketplaceRepo } from '../repo';
 import { guard } from '../auth';
 import { run } from './loads';
+import { WebhookDispatcher } from '../webhooks';
 
 const VALID_EVENTS: WebhookEvent[] = [
   'shipment.assigned',
@@ -20,7 +21,11 @@ export function publicWebhook(webhook: Webhook) {
   return { ...webhook, secret: undefined };
 }
 
-export async function webhookRoutes(app: FastifyInstance, repo: MarketplaceRepo) {
+export async function webhookRoutes(
+  app: FastifyInstance,
+  repo: MarketplaceRepo,
+  dispatcher: WebhookDispatcher,
+) {
   app.post('/webhooks', async (request, reply) => {
     if (guard(request, reply, 'shipper', 'operator', 'admin')) return;
     const body = request.body as { url?: string; events?: unknown; secret?: string } | null;
@@ -70,5 +75,23 @@ export async function webhookRoutes(app: FastifyInstance, repo: MarketplaceRepo)
       await repo.deleteWebhook(id);
       return { ok: true };
     });
+  });
+
+  app.get('/webhooks/:id/deliveries', async (request, reply) => {
+    if (guard(request, reply, 'admin')) return;
+    const { id } = request.params as { id: string };
+    return run(reply, async () => {
+      const hooks = await repo.listWebhooks();
+      if (!hooks.some((h) => h.id === id)) {
+        throw new DomainError('not_found', 'Webhook not found.');
+      }
+      return repo.listDeliveries(id);
+    });
+  });
+
+  app.post('/webhooks/deliveries/:id/retry', async (request, reply) => {
+    if (guard(request, reply, 'admin')) return;
+    const { id } = request.params as { id: string };
+    return run(reply, () => dispatcher.retry(id));
   });
 }

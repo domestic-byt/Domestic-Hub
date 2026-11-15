@@ -136,6 +136,20 @@ export interface Webhook {
   createdAt: string;
 }
 
+export interface WebhookDelivery {
+  id: string;
+  webhookId: string;
+  event: WebhookEvent;
+  url: string;
+  ok: boolean;
+  statusCode?: number;
+  error?: string;
+  attemptCount: number;
+  attemptedAt: string;
+  deliveredAt?: string;
+  payload: unknown;
+}
+
 export type TrackingEventKind =
   | 'assigned'
   | 'picked_up'

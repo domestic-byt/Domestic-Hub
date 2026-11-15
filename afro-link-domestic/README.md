@@ -54,6 +54,8 @@ The web app reads `VITE_API_BASE` at build time (defaults to `/api`, proxied in 
 | GET | `/markets/prices` | Lane price benchmark: median ETB per ton-km from delivered loads (lane first, network fallback) → suggested price with ±10% range |
 | POST | `/webhooks` | Register an outbound webhook (`{url, events?, secret?}`); receives signed shipment events |
 | GET/DELETE | `/webhooks` | List (admin, secrets redacted) / delete (admin) registered webhooks |
+| GET | `/webhooks/:id/deliveries` | Admin delivery log: latest attempts per webhook with status, error and attempt count (newest first) |
+| POST | `/webhooks/deliveries/:id/retry` | Admin retry of a failed delivery — re-posts the stored payload with a fresh signature and records the attempt |
 
 ## Domain rules baked into `@afro-link/shared`
 
@@ -133,6 +135,8 @@ Live gateways enforce a 15s timeout (`*_TIMEOUT_MS` to override), map HTTP/netwo
 Register an outbound webhook (`POST /webhooks` with `{url, events?, secret?}`) and Afro-Link Domestic pushes `shipment.assigned`, `shipment.picked_up`, `shipment.delivered`, `load.cancelled` and `operator.kyc_expiring` events as JSON with an `X-Afro-Link-Signature: sha256=<hmac>` header (HMAC-SHA256 of the raw body with your secret — verify before trusting the payload). Omit `events` to receive everything; a secret is generated for you when omitted. Delivery failures and slow endpoints (5 s timeout) never block marketplace operations.
 
 **KYC expiry reminders**: documents expiring within 30 days are flagged (`⏳` warnings) in the admin KYC queue and the agent's queue listing, and pushed once per operator and warning as signed `operator.kyc_expiring` webhooks whenever the queue is reviewed (deduped in memory per process).
+
+**Delivery log**: every webhook attempt is persisted (`webhook_deliveries`, including the payload) with the response status or error and an attempt counter. Admins can inspect `GET /webhooks/:id/deliveries` and re-deliver a failed attempt with `POST /webhooks/deliveries/:id/retry` (up to the stored payload, freshly signed).
 
 ## Web app
 

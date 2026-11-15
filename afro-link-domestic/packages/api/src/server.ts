@@ -91,7 +91,7 @@ export async function buildServer(options?: {
   app.register(async (instance) => invoiceRoutes(instance, store));
   app.register(async (instance) => agentRoutes(instance, agent));
   app.register(async (instance) => metricsRoutes(instance, store));
-  app.register(async (instance) => webhookRoutes(instance, repo));
+  app.register(async (instance) => webhookRoutes(instance, repo, webhooks));
   app.register(async (instance) => marketRoutes(instance, store));
   app.register(async (instance) => adminRoutes(instance, store));
 

@@ -52,6 +52,56 @@ describe('webhook dispatcher', () => {
       expect(headers['x-afro-link-event']).toBe('shipment.assigned');
       expect(headers['x-afro-link-signature']).toBe(signWebhook('secret-all', body));
       expect(JSON.parse(body).data.shipmentId).toBe('s1');
+
+      const deliveries = await repo.listDeliveries();
+      expect(deliveries).toHaveLength(1);
+      expect(deliveries[0]!.webhookId).toBe('wh-all');
+      expect(deliveries[0]!.ok).toBe(false);
+      expect(deliveries[0]!.error).toBe('boom');
+      expect(deliveries[0]!.attemptCount).toBe(1);
+      expect(deliveries[0]!.payload).toMatchObject({ event: 'shipment.assigned' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('retries a failed delivery and records the second attempt', async () => {
+    const repo = new InMemoryRepo();
+    await repo.saveWebhook({
+      id: 'wh-retry',
+      url: 'https://hooks.example/retry',
+      secret: 'secret-retry',
+      events: [],
+      createdAt: new Date().toISOString(),
+    });
+    let failing = true;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        if (failing) throw new Error('outage');
+        return new Response('{}', { status: 200 });
+      }),
+    );
+    try {
+      const dispatcher = new WebhookDispatcher(repo, 100);
+      await dispatcher.dispatch('shipment.delivered', { shipmentId: 's2' });
+      const [failed] = await repo.listDeliveries();
+      expect(failed!.ok).toBe(false);
+      expect(failed!.error).toBe('outage');
+
+      failing = false;
+      const retried = await dispatcher.retry(failed!.id);
+      expect(retried.ok).toBe(true);
+      expect(retried.statusCode).toBe(200);
+      expect(retried.attemptCount).toBe(2);
+      expect(retried.deliveredAt).toBeTruthy();
+      expect(retried.payload).toMatchObject({ data: { shipmentId: 's2' } });
+      expect((await repo.getDelivery(failed!.id))?.attemptCount).toBe(2);
+
+      await expect(dispatcher.retry('missing')).rejects.toThrow(/not found/i);
+
+      await repo.deleteWebhook('wh-retry');
+      await expect(dispatcher.retry(failed!.id)).rejects.toThrow(/no longer exists/i);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -221,6 +271,72 @@ describe('webhook api', async () => {
       await app.inject({ method: 'GET', url: '/admin/kyc' });
       await new Promise((resolve) => setTimeout(resolve, 10));
       expect(deliveries).toHaveLength(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('lists the delivery log and retries a failed delivery', async () => {
+    let fetchCalls = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        fetchCalls += 1;
+        return new Response('{}', { status: fetchCalls === 1 ? 500 : 200 });
+      }),
+    );
+    try {
+      const hook = (
+        await app.inject({
+          method: 'POST',
+          url: '/webhooks',
+          payload: { url: 'https://hooks.example/fail', events: ['load.cancelled'] },
+        })
+      ).json();
+
+      const missingList = await app.inject({
+        method: 'GET',
+        url: `/webhooks/${hook.id}/deliveries`,
+      });
+      expect(missingList.statusCode).toBe(200);
+      expect(missingList.json()).toEqual([]);
+
+      const load = (
+        await app.inject({
+          method: 'POST',
+          url: '/loads',
+          payload: {
+            shipperId: 'shipper-dlog',
+            origin: addis,
+            destination: jimma,
+            weightTons: 5,
+            offeredPriceEtb: 9000,
+          },
+        })
+      ).json();
+      await app.inject({ method: 'POST', url: `/loads/${load.id}/cancel` });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const listed = await app.inject({ method: 'GET', url: `/webhooks/${hook.id}/deliveries` });
+      expect(listed.statusCode).toBe(200);
+      const log = listed.json();
+      expect(log.length).toBeGreaterThan(0);
+      expect(log[0].ok).toBe(false);
+      expect(log[0].statusCode).toBe(500);
+
+      const retry = await app.inject({
+        method: 'POST',
+        url: `/webhooks/deliveries/${log[0].id}/retry`,
+      });
+      expect(retry.statusCode).toBe(200);
+      expect(retry.json().ok).toBe(true);
+      expect(retry.json().attemptCount).toBe(2);
+
+      const unknown = await app.inject({
+        method: 'POST',
+        url: '/webhooks/deliveries/does-not-exist/retry',
+      });
+      expect(unknown.statusCode).toBe(404);
     } finally {
       vi.unstubAllGlobals();
     }
