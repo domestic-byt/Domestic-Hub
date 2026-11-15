@@ -70,6 +70,16 @@ export interface AgentStore {
     licenseExpiry?: string;
     insuranceExpiry?: string;
   }): Promise<TruckOperator>;
+  submitKycDocuments(
+    operatorId: string,
+    input: {
+      licenseNumber?: string;
+      licenseExpiry?: string;
+      insuranceExpiry?: string;
+      licenseDocUrl?: string;
+      insuranceDocUrl?: string;
+    },
+  ): Promise<TruckOperator>;
   suggestLanePrice(input: {
     origin: City;
     destination: City;
@@ -96,6 +106,7 @@ export type AgentIntent =
   | 'capture_pod'
   | 'rate_shipment'
   | 'review_kyc'
+  | 'submit_kyc_docs'
   | 'earnings'
   | 'price_suggestion'
   | 'help'

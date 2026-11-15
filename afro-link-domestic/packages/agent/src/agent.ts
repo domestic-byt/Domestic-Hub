@@ -25,6 +25,7 @@ const HELP_TEXT = [
   '- Proof of delivery: "confirm delivery received by <name>"',
   '- Rate a delivery: "rate 5 stars"',
   '- KYC review (admin): "show KYC queue", "approve operator <id>"',
+  '- Submit KYC documents: "submit license DL-12345 expires 2031-05-01 <doc url>"',
 ].join('\n');
 
 const UNKNOWN_TEXT = "I didn't catch that. " + HELP_TEXT;
@@ -90,6 +91,8 @@ export class DomesticAgent {
           return await this.reportEarnings(message, ctx, memory);
         case 'review_kyc':
           return await this.reviewKyc(message, ctx, memory);
+        case 'submit_kyc_docs':
+          return await this.submitKycDocs(message, ctx);
         case 'price_suggestion':
           return await this.suggestPricing(message, memory);
         case 'help':
@@ -489,6 +492,42 @@ export class DomesticAgent {
         'Approve or reject with "approve operator <id>" / "reject operator <id>".',
       ].join('\n'),
       data: queue,
+    };
+  }
+
+  private async submitKycDocs(message: string, ctx: AgentContext) {
+    if (!ctx.operatorId) {
+      return {
+        reply:
+          '⚠️ I need to know which operator you are. Sign in with an operator token or send your operator id.',
+      };
+    }
+    const licenseNumber = message.match(/licen[cs]e\s*(?:number|no\.?|#)?\s*([A-Za-z0-9][A-Za-z0-9-]{2,19})/i)?.[1];
+    const isoDates = [...message.matchAll(/\b(\d{4}-\d{2}-\d{2})\b/g)].map((m) => m[1]);
+    const urls = [...message.matchAll(/https?:\/\/\S+/gi)].map((m) => m[0]);
+    if (!licenseNumber && isoDates.length === 0 && urls.length === 0) {
+      return {
+        reply:
+          'Send your documents like: "submit license DL-12345 expires 2031-05-01 https://docs.example/license.pdf" — you can add an insurance expiry date and document URL too.',
+      };
+    }
+    const operator = await this.store.submitKycDocuments(ctx.operatorId, {
+      licenseNumber: licenseNumber ? licenseNumber.toUpperCase() : undefined,
+      licenseExpiry: isoDates[0],
+      insuranceExpiry: isoDates.length > 1 ? isoDates[1] : undefined,
+      licenseDocUrl: urls[0],
+      insuranceDocUrl: urls.length > 1 ? urls[1] : undefined,
+    });
+    const fields = [
+      operator.licenseNumber ? `license ${operator.licenseNumber}` : undefined,
+      operator.licenseExpiry ? `license expires ${operator.licenseExpiry}` : undefined,
+      operator.insuranceExpiry ? `insurance expires ${operator.insuranceExpiry}` : undefined,
+      operator.licenseDocUrl ? `license document attached` : undefined,
+      operator.insuranceDocUrl ? `insurance document attached` : undefined,
+    ].filter(Boolean);
+    return {
+      reply: `✅ KYC documents submitted for ${operator.name} (${operator.id}) — ${fields.join(', ')} — pending admin review.`,
+      data: operator,
     };
   }
 

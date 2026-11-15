@@ -282,6 +282,31 @@ class FakeStore implements AgentStore {
     return updated;
   }
 
+  async submitKycDocuments(
+    operatorId: string,
+    input: {
+      licenseNumber?: string;
+      licenseExpiry?: string;
+      insuranceExpiry?: string;
+      licenseDocUrl?: string;
+      insuranceDocUrl?: string;
+    },
+  ): Promise<TruckOperator> {
+    const operator = this.operators.find((o) => o.id === operatorId);
+    if (!operator) throw new DomainError('not_found', 'Operator not found.');
+    const updated: TruckOperator = {
+      ...operator,
+      licenseNumber: input.licenseNumber ?? operator.licenseNumber,
+      licenseExpiry: input.licenseExpiry ?? operator.licenseExpiry,
+      insuranceExpiry: input.insuranceExpiry ?? operator.insuranceExpiry,
+      licenseDocUrl: input.licenseDocUrl ?? operator.licenseDocUrl,
+      insuranceDocUrl: input.insuranceDocUrl ?? operator.insuranceDocUrl,
+      kycDecision: 'pending',
+    };
+    this.operators = this.operators.map((o) => (o.id === operatorId ? updated : o));
+    return updated;
+  }
+
   async getMetrics(): Promise<MarketplaceMetrics> {
     const loads = [...this.loads.values()];
     const shipments = [...this.shipments.values()];
@@ -351,6 +376,9 @@ describe('detectIntent', () => {
     expect(detectIntent('show the KYC queue')).toBe('review_kyc');
     expect(detectIntent('approve operator op-1')).toBe('review_kyc');
     expect(detectIntent('ውድቅ አድርግ')).toBe('review_kyc');
+    expect(detectIntent('submit my license documents')).toBe('submit_kyc_docs');
+    expect(detectIntent('galmee koo hiikkaa')).toBe('submit_kyc_docs');
+    expect(detectIntent('tuma hati za leseni')).toBe('submit_kyc_docs');
     expect(detectIntent('cancel that load')).toBe('cancel_load');
     expect(detectIntent('ተሰርዝ አስፈልገኛል')).toBe('cancel_load');
     expect(detectIntent('how much have I earned?')).toBe('earnings');
@@ -669,6 +697,31 @@ describe('DomesticAgent', () => {
     const rejected = await agent.handle('reject operator op-near', { admin: true });
     expect(rejected.reply).toContain('KYC rejected');
     expect(store.operators[0]!.kycDecision).toBe('rejected');
+  });
+
+  it('submits KYC documents for the signed-in operator', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+
+    const anonymous = await agent.handle('submit my license documents');
+    expect(anonymous.intent).toBe('submit_kyc_docs');
+    expect(anonymous.reply).toMatch(/operator/i);
+
+    const guidance = await agent.handle('submit my documents', { operatorId: 'op-near' });
+    expect(guidance.reply).toContain('submit license');
+
+    const result = await agent.handle(
+      'submit license DL-12345 expires 2031-05-01 https://docs.example/license.pdf',
+      { operatorId: 'op-near' },
+    );
+    expect(result.intent).toBe('submit_kyc_docs');
+    expect(result.reply).toContain('DL-12345');
+    expect(result.reply).toContain('pending admin review');
+    const updated = store.operators[0]!;
+    expect(updated.licenseNumber).toBe('DL-12345');
+    expect(updated.licenseExpiry).toBe('2031-05-01');
+    expect(updated.licenseDocUrl).toBe('https://docs.example/license.pdf');
+    expect(updated.kycDecision).toBe('pending');
   });
 
   it('reports operator earnings after delivery', async () => {

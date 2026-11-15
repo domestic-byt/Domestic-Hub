@@ -126,6 +126,9 @@ describe('agent LLM fallback', () => {
     async reviewKyc(): Promise<never> {
       throw new Error('not used');
     }
+    async submitKycDocuments(): Promise<never> {
+      throw new Error('not used');
+    }
     async suggestLanePrice(): Promise<never> {
       throw new Error('not used');
     }
