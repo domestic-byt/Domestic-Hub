@@ -248,6 +248,33 @@ class FakeStore implements AgentStore {
     return cancelled;
   }
 
+  async counterOffer(loadId: string, operatorId: string, priceEtb: number): Promise<Load> {
+    const load = this.loads.get(loadId);
+    if (!load) throw new DomainError('not_found', 'Load not found.');
+    if (load.status !== 'open') {
+      throw new DomainError('conflict', `Load is ${load.status}, not open.`);
+    }
+    const updated = { ...load, counterOfferEtb: priceEtb, counterOfferBy: operatorId };
+    this.loads.set(loadId, updated);
+    return updated;
+  }
+
+  async acceptCounterOffer(loadId: string): Promise<Load> {
+    const load = this.loads.get(loadId);
+    if (!load) throw new DomainError('not_found', 'Load not found.');
+    if (load.counterOfferEtb === undefined) {
+      throw new DomainError('conflict', 'No counter offer to accept.');
+    }
+    const updated = {
+      ...load,
+      offeredPriceEtb: load.counterOfferEtb,
+      counterOfferEtb: undefined,
+      counterOfferBy: undefined,
+    };
+    this.loads.set(loadId, updated);
+    return updated;
+  }
+
   async getEarnings(operatorId: string): Promise<OperatorEarnings> {
     const operator = this.operators.find((o) => o.id === operatorId);
     if (!operator) throw new DomainError('not_found', 'Operator not found.');
@@ -408,6 +435,9 @@ describe('detectIntent', () => {
     expect(detectIntent('rate 5 stars')).toBe('rate_shipment');
     expect(detectIntent('what is the status of my advances?')).toBe('advance_status');
     expect(detectIntent('show my invoices')).toBe('list_invoices');
+    expect(detectIntent('counter offer 35000 birr')).toBe('counter_offer');
+    expect(detectIntent('accept the offer for load 123')).toBe('accept_offer');
+    expect(detectIntent('send me this conversation')).toBe('export_transcript');
     expect(detectIntent('help')).toBe('help');
     expect(detectIntent('xyzzy')).toBe('unknown');
   });
@@ -854,6 +884,48 @@ describe('DomesticAgent', () => {
     expect(result.reply).toContain('Loads: 1 total (0 open, 1 assigned, 0 delivered)');
     expect(result.reply).toContain('Shipments: 1 total, 0 delivered');
     expect(result.reply).toContain('avg deadhead');
+  });
+
+  it('negotiates a price via counter offer and acceptance', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+    const load = await store.createLoad({
+      shipperId: 'shipper-1',
+      origin: jimma,
+      destination: addis,
+      weightTons: 20,
+      offeredPriceEtb: 40000,
+    });
+
+    const offered = await agent.handle(`counter offer 35000 birr on load ${load.id}`, {
+      operatorId: 'op-near',
+    });
+    expect(offered.intent).toBe('counter_offer');
+    expect(offered.reply).toContain('35000 ETB');
+    expect(store.loads.get(load.id)?.counterOfferEtb).toBe(35000);
+    expect(store.loads.get(load.id)?.counterOfferBy).toBe('op-near');
+
+    const accepted = await agent.handle(`accept the offer for load ${load.id}`, {
+      shipperId: 'shipper-1',
+    });
+    expect(accepted.intent).toBe('accept_offer');
+    expect(accepted.reply).toContain('35000 ETB');
+    const final = store.loads.get(load.id)!;
+    expect(final.offeredPriceEtb).toBe(35000);
+    expect(final.counterOfferEtb).toBeUndefined();
+  });
+
+  it('exports the conversation transcript on request', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+    await agent.handle('Post 20 tons from Jimma to Addis Ababa for 40000 birr');
+    await agent.handle('help');
+
+    const result = await agent.handle('send me this conversation');
+    expect(result.intent).toBe('export_transcript');
+    expect(result.reply).toContain('Conversation transcript');
+    expect(result.reply).toContain('User: Post 20 tons from Jimma to Addis Ababa for 40000 birr');
+    expect(result.reply).toContain('Agent:');
   });
 
   it('uses the LLM adapter for the reply when provided', async () => {

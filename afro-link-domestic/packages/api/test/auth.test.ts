@@ -252,6 +252,104 @@ describe('authenticated api', async () => {
     expect(loadRes.json().shipperId).toBe('shipper-77');
   });
 
+  it('guards counter offers, offer acceptance and the fleet overview', async () => {
+    const anonOffer = await app.inject({
+      method: 'POST',
+      url: '/loads/some-load/counter-offer',
+      payload: { operatorId: 'op-1', priceEtb: 100 },
+    });
+    expect(anonOffer.statusCode).toBe(401);
+
+    const shipperOffer = await app.inject({
+      method: 'POST',
+      url: '/loads/some-load/counter-offer',
+      headers: authed('shipper'),
+      payload: { operatorId: 'op-1', priceEtb: 100 },
+    });
+    expect(shipperOffer.statusCode).toBe(403);
+
+    const operatorAccept = await app.inject({
+      method: 'POST',
+      url: '/loads/some-load/accept-offer',
+      headers: authed('operator'),
+    });
+    expect(operatorAccept.statusCode).toBe(403);
+
+    const fleetAnon = await app.inject({ method: 'GET', url: '/admin/fleet' });
+    expect(fleetAnon.statusCode).toBe(401);
+
+    const fleetForbidden = await app.inject({
+      method: 'GET',
+      url: '/admin/fleet',
+      headers: authed('operator'),
+    });
+    expect(fleetForbidden.statusCode).toBe(403);
+
+    const fleetAllowed = await app.inject({
+      method: 'GET',
+      url: '/admin/fleet',
+      headers: authed('admin'),
+    });
+    expect(fleetAllowed.statusCode).toBe(200);
+    expect(Array.isArray(fleetAllowed.json())).toBe(true);
+  });
+
+  it('lets operators counter-offer and shippers accept only their own loads', async () => {
+    const operatorRes = await app.inject({
+      method: 'POST',
+      url: '/operators',
+      headers: authed('operator', 'op-nego'),
+      payload: {
+        name: 'Nego Trucks',
+        phone: '+251911444555',
+        truckPlate: 'AU-0004',
+        capacityTons: 25,
+        currentCity: addis,
+      },
+    });
+    expect(operatorRes.statusCode).toBe(201);
+    const operatorId = operatorRes.json().id;
+
+    const loadRes = await app.inject({
+      method: 'POST',
+      url: '/loads',
+      headers: authed('shipper', 'shipper-nego'),
+      payload: {
+        shipperId: 'ignored',
+        origin: addis,
+        destination: jimma,
+        weightTons: 10,
+        offeredPriceEtb: 20000,
+      },
+    });
+    expect(loadRes.statusCode).toBe(201);
+    const loadId = loadRes.json().id;
+
+    const offerRes = await app.inject({
+      method: 'POST',
+      url: `/loads/${loadId}/counter-offer`,
+      headers: authed('operator', operatorId),
+      payload: { priceEtb: 18000 },
+    });
+    expect(offerRes.statusCode).toBe(200);
+    expect(offerRes.json().counterOfferBy).toBe(operatorId);
+
+    const forbidden = await app.inject({
+      method: 'POST',
+      url: `/loads/${loadId}/accept-offer`,
+      headers: authed('shipper', 'shipper-other'),
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    const own = await app.inject({
+      method: 'POST',
+      url: `/loads/${loadId}/accept-offer`,
+      headers: authed('shipper', 'shipper-nego'),
+    });
+    expect(own.statusCode).toBe(200);
+    expect(own.json().offeredPriceEtb).toBe(18000);
+  });
+
   it('lets shippers cancel only their own loads', async () => {
     const otherLoad = await app.inject({
       method: 'POST',

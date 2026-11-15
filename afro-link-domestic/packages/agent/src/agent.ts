@@ -1,6 +1,12 @@
 import { DomainError, KycDecision } from '@afro-link/shared';
 import { detectIntent } from './intent';
-import { AgentMemory, AgentMemoryState, InMemoryAgentMemory } from './memory';
+import {
+  AgentMemory,
+  AgentMemoryState,
+  InMemoryAgentMemory,
+  MAX_TRANSCRIPT_ENTRIES,
+  TranscriptEntry,
+} from './memory';
 import { extractSlots } from './slots';
 import {
   AgentContext,
@@ -28,6 +34,9 @@ const HELP_TEXT = [
   '- Rate a delivery: "rate 5 stars"',
   '- KYC review (admin): "show KYC queue", "approve operator <id>"',
   '- Submit KYC documents: "submit license DL-12345 expires 2031-05-01 <doc url>"',
+  '- Counter offer: "counter offer 35000 birr on load <id>"',
+  '- Accept an offer: "accept the offer for load <id>"',
+  '- Transcript: "send me this conversation"',
 ].join('\n');
 
 const UNKNOWN_TEXT = "I didn't catch that. " + HELP_TEXT;
@@ -43,8 +52,10 @@ export class DomesticAgent {
     const intent = detectIntent(message);
     const sessionKey = ctx.sessionKey ?? ctx.shipperId ?? ctx.operatorId ?? 'guest';
     const memory = (await this.memory.get(sessionKey)) ?? {};
+    const transcript: TranscriptEntry[] = memory.transcript ?? [];
+    transcript.push({ role: 'user', content: message, at: new Date().toISOString() });
+    memory.transcript = transcript;
     const outcome = await this.execute(intent, message, ctx, memory);
-    await this.memory.set(sessionKey, memory);
     let reply = outcome.reply;
     if (this.llm) {
       try {
@@ -56,6 +67,9 @@ export class DomesticAgent {
         reply = outcome.reply;
       }
     }
+    transcript.push({ role: 'assistant', content: reply, at: new Date().toISOString() });
+    memory.transcript = transcript.slice(-MAX_TRANSCRIPT_ENTRIES);
+    await this.memory.set(sessionKey, memory);
     return { intent, reply, data: outcome.data };
   }
 
@@ -101,6 +115,12 @@ export class DomesticAgent {
           return await this.submitKycDocs(message, ctx);
         case 'price_suggestion':
           return await this.suggestPricing(message, memory);
+        case 'counter_offer':
+          return await this.counterOffer(message, ctx, memory);
+        case 'accept_offer':
+          return await this.acceptOffer(message, memory);
+        case 'export_transcript':
+          return this.exportTranscript(memory);
         case 'help':
           return { reply: HELP_TEXT };
         default:
@@ -384,6 +404,67 @@ export class DomesticAgent {
     return {
       reply: `VAT invoice ${invoice.id}: subtotal ${invoice.subtotalEtb} ETB + VAT ${invoice.vatEtb} ETB = ${invoice.totalEtb} ETB.`,
       data: invoice,
+    };
+  }
+
+  private async counterOffer(message: string, ctx: AgentContext, memory: AgentMemoryState) {
+    const slots = extractSlots(message);
+    const loadId = slots.ids[0] ?? memory.lastLoadId;
+    if (!loadId) {
+      return {
+        reply: 'Which load is the counter offer for? Share the load id.',
+      };
+    }
+    const operatorId = ctx.operatorId ?? memory.lastOperatorId;
+    if (!operatorId) {
+      return {
+        reply:
+          'Which operator is making the offer? Sign in as an operator (or share your operator id).',
+      };
+    }
+    if (!slots.moneyEtb) {
+      return {
+        reply:
+          'How much should the counter offer be? Example: "counter offer 35000 birr on load <id>".',
+      };
+    }
+    const load = await this.store.counterOffer(loadId, operatorId, slots.moneyEtb);
+    memory.lastLoadId = load.id;
+    memory.lastOperatorId = operatorId;
+    memory.lastMoneyEtb = slots.moneyEtb;
+    return {
+      reply: `Counter offer sent: ${load.counterOfferEtb} ETB for load ${load.id} (${load.origin.name} → ${load.destination.name}). The shipper can accept it to set the agreed price.`,
+      data: load,
+    };
+  }
+
+  private async acceptOffer(message: string, memory: AgentMemoryState) {
+    const slots = extractSlots(message);
+    const loadId = slots.ids[0] ?? memory.lastLoadId;
+    if (!loadId) {
+      return {
+        reply: 'Which load offer should I accept? Share the load id.',
+      };
+    }
+    const load = await this.store.acceptCounterOffer(loadId);
+    memory.lastLoadId = load.id;
+    return {
+      reply: `Deal. Load ${load.id} is now priced at ${load.offeredPriceEtb} ETB.`,
+      data: load,
+    };
+  }
+
+  private exportTranscript(memory: AgentMemoryState) {
+    const entries = memory.transcript ?? [];
+    if (entries.length === 0) {
+      return { reply: 'No conversation recorded in this session yet.' };
+    }
+    const lines = entries.map(
+      (e) => `[${e.at}] ${e.role === 'user' ? 'User' : 'Agent'}: ${e.content}`,
+    );
+    return {
+      reply: `Conversation transcript (${entries.length} entries):\n${lines.join('\n')}`,
+      data: { transcript: entries },
     };
   }
 

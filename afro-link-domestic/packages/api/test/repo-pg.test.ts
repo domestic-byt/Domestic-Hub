@@ -79,6 +79,21 @@ describe.skipIf(!process.env.DATABASE_URL)('pg repo', () => {
 
     await repo.saveLoad({ ...first, status: 'assigned' });
     expect((await repo.getLoad(first.id))?.status).toBe('assigned');
+
+    await repo.saveLoad({ ...first, counterOfferEtb: 35000, counterOfferBy: 'op-pg' });
+    const negotiated = await repo.getLoad(first.id);
+    expect(negotiated?.counterOfferEtb).toBe(35000);
+    expect(negotiated?.counterOfferBy).toBe('op-pg');
+
+    await repo.saveLoad({
+      ...first,
+      status: 'assigned',
+      counterOfferEtb: undefined,
+      counterOfferBy: undefined,
+    });
+    const cleared = await repo.getLoad(first.id);
+    expect(cleared?.counterOfferEtb).toBeUndefined();
+    expect(cleared?.counterOfferBy).toBeUndefined();
   });
 
   it('stores shipments with optional deliveredAt and latestShipment', async () => {

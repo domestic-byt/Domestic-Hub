@@ -56,6 +56,11 @@ export async function adminRoutes(app: FastifyInstance, store: MarketplaceStore)
     );
   });
 
+  app.get('/admin/fleet', async (request, reply) => {
+    if (guard(request, reply, 'admin')) return;
+    return run(reply, () => store.fleetOverview());
+  });
+
   app.get('/admin/audit', async (request, reply) => {
     if (guard(request, reply, 'admin')) return;
     return run(reply, () => store.listAuditEntries());

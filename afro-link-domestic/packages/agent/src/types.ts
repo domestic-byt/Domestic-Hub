@@ -53,6 +53,8 @@ export interface AgentStore {
   findLatestShipment(): Promise<Shipment | undefined>;
   findLatestLoad(): Promise<Load | undefined>;
   cancelLoad(loadId: string): Promise<Load>;
+  counterOffer(loadId: string, operatorId: string, priceEtb: number): Promise<Load>;
+  acceptCounterOffer(loadId: string): Promise<Load>;
   capturePod(
     shipmentId: string,
     receiverName: string,
@@ -113,6 +115,9 @@ export type AgentIntent =
   | 'submit_kyc_docs'
   | 'earnings'
   | 'price_suggestion'
+  | 'counter_offer'
+  | 'accept_offer'
+  | 'export_transcript'
   | 'help'
   | 'unknown';
 

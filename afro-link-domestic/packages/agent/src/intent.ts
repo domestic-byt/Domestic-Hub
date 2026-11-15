@@ -54,6 +54,18 @@ const PATTERNS: Array<[AgentIntent, RegExp]> = [
   ],
   ['price_suggestion', /price|pricing|how\s*much.*charge|ዋጋ|በዕሊ|gatii|qiimo|qiimah|bei/i],
   [
+    'export_transcript',
+    /transcript|send\s+(?:me\s+)?(?:this|the)\s+conversation|conversation\s+(?:log|history|export)|ውይት|sheeko|wadaahadal|mazungumzo/i,
+  ],
+  [
+    'accept_offer',
+    /\baccept\s+(?:the\s+)?(?:counter\s+)?(?:offer|price)\b|\boffer\s+accepted\b|\bagree\b|ተቀበል|fudhaa|aqbal|kubali/i,
+  ],
+  [
+    'counter_offer',
+    /\bcounter[\s-]?offs?er?\b|\bcounter\b|\bbid\b|\boffer\b|\bgive\s+\d+|ጌላ\s*ዋጋ|gatii\s*haaraa|qiimo\s*cusub|bei\s*nyingine/i,
+  ],
+  [
     'post_load',
     /post|load|ship|cargo|ጭን|ላክ|ጭነት|fe'aa|dhiyeessi|rarka|shub|mzigo|weka/i,
   ],

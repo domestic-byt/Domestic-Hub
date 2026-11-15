@@ -36,6 +36,7 @@ import {
   Rating,
   validateRatingStars,
   AuditEntry,
+  FleetEntry,
 } from '@afro-link/shared';
 import type {
   AgentStore,
@@ -681,6 +682,70 @@ export class MarketplaceStore implements AgentStore {
 
   async findLatestLoad(): Promise<Load | undefined> {
     return this.repo.latestLoad();
+  }
+
+  async counterOffer(loadId: string, operatorId: string, priceEtb: number): Promise<Load> {
+    const load = await this.getLoad(loadId);
+    await this.getOperator(operatorId);
+    if (load.status !== 'open') {
+      throw new DomainError('conflict', `Load is ${load.status}, not open.`);
+    }
+    if (!Number.isFinite(priceEtb) || priceEtb <= 0) {
+      throw new DomainError('validation', 'Counter offer must be a positive number.');
+    }
+    const updated: Load = { ...load, counterOfferEtb: priceEtb, counterOfferBy: operatorId };
+    await this.repo.saveLoad(updated);
+    return updated;
+  }
+
+  async acceptCounterOffer(loadId: string): Promise<Load> {
+    const load = await this.getLoad(loadId);
+    if (load.counterOfferEtb === undefined) {
+      throw new DomainError('conflict', 'No counter offer to accept.');
+    }
+    const updated: Load = {
+      ...load,
+      offeredPriceEtb: load.counterOfferEtb,
+      counterOfferEtb: undefined,
+      counterOfferBy: undefined,
+    };
+    await this.repo.saveLoad(updated);
+    return updated;
+  }
+
+  async fleetOverview(): Promise<FleetEntry[]> {
+    const [operators, shipments, loads] = await Promise.all([
+      this.repo.listOperators(),
+      this.repo.listShipments(),
+      this.repo.listLoads(),
+    ]);
+    const loadById = new Map(loads.map((l) => [l.id, l]));
+    return operators.map((operator) => {
+      const active = shipments
+        .filter(
+          (s) =>
+            s.operatorId === operator.id &&
+            (s.status === 'assigned' || s.status === 'in_transit'),
+        )
+        .sort((a, b) => b.assignedAt.localeCompare(a.assignedAt))[0];
+      const load = active ? loadById.get(active.loadId) : undefined;
+      return {
+        operatorId: operator.id,
+        name: operator.name,
+        truckPlate: operator.truckPlate,
+        status: operator.status,
+        currentCity: (operator.lastDropOffCity ?? operator.currentCity).name,
+        kycStatus: operator.kycDecision ?? 'pending',
+        activeShipment: active
+          ? {
+              shipmentId: active.id,
+              status: active.status,
+              origin: load?.origin.name ?? '',
+              destination: load?.destination.name ?? '',
+            }
+          : undefined,
+      };
+    });
   }
 
   async listOperators(): Promise<TruckOperator[]> {

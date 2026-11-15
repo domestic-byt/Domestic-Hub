@@ -48,6 +48,8 @@ export interface Load {
   availableFrom: string;
   offeredPriceEtb: number;
   status: LoadStatus;
+  counterOfferEtb?: number;
+  counterOfferBy?: string;
 }
 
 export type ShipmentStatus = 'assigned' | 'in_transit' | 'delivered' | 'cancelled';
@@ -137,6 +139,21 @@ export interface OperatorDashboard {
   deliveredShipments: number;
   netEtb: number;
   returnLoads: ReturnLoadMatch[];
+}
+
+export interface FleetEntry {
+  operatorId: string;
+  name: string;
+  truckPlate: string;
+  status: OperatorStatus;
+  currentCity: string;
+  kycStatus: KycDecision;
+  activeShipment?: {
+    shipmentId: string;
+    status: ShipmentStatus;
+    origin: string;
+    destination: string;
+  };
 }
 
 export interface FailedPayout {

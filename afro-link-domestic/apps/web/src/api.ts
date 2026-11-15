@@ -10,6 +10,7 @@ import type {
   Load,
   MarketplaceMetrics,
   Operator,
+  FleetEntry,
   OperatorDashboard,
   OperatorEarnings,
   OperatorMatch,
@@ -118,6 +119,9 @@ export const api = {
   }) => request<Load>('/loads', 'POST', input),
   getMatches: (loadId: string) => request<OperatorMatch[]>(`/loads/${loadId}/matches`, 'GET'),
   cancelLoad: (loadId: string) => request<Load>(`/loads/${loadId}/cancel`, 'POST'),
+  counterOffer: (loadId: string, operatorId: string, priceEtb: number) =>
+    request<Load>(`/loads/${loadId}/counter-offer`, 'POST', { operatorId, priceEtb }),
+  acceptOffer: (loadId: string) => request<Load>(`/loads/${loadId}/accept-offer`, 'POST'),
 
   getSuggestedPrice: (origin: string, destination: string, weightTons: number) =>
     request<PriceSuggestion>(
@@ -170,6 +174,7 @@ export const api = {
   getMetrics: () => request<MarketplaceMetrics>('/metrics', 'GET'),
 
   getKycQueue: () => request<KycReview[]>('/admin/kyc', 'GET'),
+  getFleet: () => request<FleetEntry[]>('/admin/fleet', 'GET'),
   submitKycDocuments: (
     operatorId: string,
     input: {

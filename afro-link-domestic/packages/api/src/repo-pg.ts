@@ -49,7 +49,9 @@ CREATE TABLE IF NOT EXISTS loads (
   weight_tons DOUBLE PRECISION NOT NULL,
   available_from TIMESTAMPTZ NOT NULL,
   offered_price_etb DOUBLE PRECISION NOT NULL,
-  status TEXT NOT NULL
+  status TEXT NOT NULL,
+  counter_offer_etb DOUBLE PRECISION,
+  counter_offer_by TEXT
 );
 CREATE TABLE IF NOT EXISTS shipments (
   seq BIGSERIAL,
@@ -194,6 +196,8 @@ function rowToLoad(row: Row): Load {
     availableFrom: iso(row.available_from),
     offeredPriceEtb: num(row.offered_price_etb),
     status: str(row.status) as LoadStatus,
+    counterOfferEtb: row.counter_offer_etb === null ? undefined : num(row.counter_offer_etb),
+    counterOfferBy: row.counter_offer_by === null ? undefined : str(row.counter_offer_by),
   };
 }
 
@@ -346,12 +350,13 @@ export class PgRepo implements MarketplaceRepo {
 
   async saveLoad(load: Load): Promise<void> {
     await this.pool.query(
-      `INSERT INTO loads (id, shipper_id, origin, destination, weight_tons, available_from, offered_price_etb, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO loads (id, shipper_id, origin, destination, weight_tons, available_from, offered_price_etb, status, counter_offer_etb, counter_offer_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (id) DO UPDATE SET
          shipper_id = EXCLUDED.shipper_id, origin = EXCLUDED.origin, destination = EXCLUDED.destination,
          weight_tons = EXCLUDED.weight_tons, available_from = EXCLUDED.available_from,
-         offered_price_etb = EXCLUDED.offered_price_etb, status = EXCLUDED.status`,
+         offered_price_etb = EXCLUDED.offered_price_etb, status = EXCLUDED.status,
+         counter_offer_etb = EXCLUDED.counter_offer_etb, counter_offer_by = EXCLUDED.counter_offer_by`,
       [
         load.id,
         load.shipperId,
@@ -361,6 +366,8 @@ export class PgRepo implements MarketplaceRepo {
         load.availableFrom,
         load.offeredPriceEtb,
         load.status,
+        load.counterOfferEtb ?? null,
+        load.counterOfferBy ?? null,
       ],
     );
   }

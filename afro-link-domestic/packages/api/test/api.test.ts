@@ -1331,6 +1331,98 @@ describe('domestic ai agent endpoint', async () => {
     expect(ratingGetRes.statusCode).toBe(200);
     expect(ratingGetRes.json().stars).toBe(4);
   });
+
+  it('negotiates load prices with counter offers and exposes an admin fleet overview', async () => {
+    const operatorRes = await app.inject({
+      method: 'POST',
+      url: '/operators',
+      payload: {
+        name: 'Negotiator Trucks',
+        phone: '+251911777888',
+        truckPlate: 'AN-9001',
+        capacityTons: 30,
+        currentCity: addis,
+      },
+    });
+    expect(operatorRes.statusCode).toBe(201);
+    const operator = operatorRes.json();
+
+    const loadRes = await app.inject({
+      method: 'POST',
+      url: '/loads',
+      payload: {
+        shipperId: 'shipper-nego',
+        origin: addis,
+        destination: jimma,
+        weightTons: 15,
+        offeredPriceEtb: 30000,
+      },
+    });
+    expect(loadRes.statusCode).toBe(201);
+    const load = loadRes.json();
+
+    const missing = await app.inject({
+      method: 'POST',
+      url: '/loads/does-not-exist/counter-offer',
+      payload: { operatorId: operator.id, priceEtb: 100 },
+    });
+    expect(missing.statusCode).toBe(404);
+
+    const badPrice = await app.inject({
+      method: 'POST',
+      url: `/loads/${load.id}/counter-offer`,
+      payload: { operatorId: operator.id, priceEtb: -5 },
+    });
+    expect(badPrice.statusCode).toBe(400);
+
+    const offerRes = await app.inject({
+      method: 'POST',
+      url: `/loads/${load.id}/counter-offer`,
+      payload: { operatorId: operator.id, priceEtb: 34500 },
+    });
+    expect(offerRes.statusCode).toBe(200);
+    expect(offerRes.json().counterOfferEtb).toBe(34500);
+    expect(offerRes.json().counterOfferBy).toBe(operator.id);
+
+    const listed = await app.inject({ method: 'GET', url: '/loads' });
+    const offered = listed.json().find((l: { id: string }) => l.id === load.id);
+    expect(offered.counterOfferEtb).toBe(34500);
+
+    const acceptRes = await app.inject({
+      method: 'POST',
+      url: `/loads/${load.id}/accept-offer`,
+      payload: {},
+    });
+    expect(acceptRes.statusCode).toBe(200);
+    expect(acceptRes.json().offeredPriceEtb).toBe(34500);
+    expect(acceptRes.json().counterOfferEtb).toBeUndefined();
+
+    const again = await app.inject({
+      method: 'POST',
+      url: `/loads/${load.id}/accept-offer`,
+      payload: {},
+    });
+    expect(again.statusCode).toBe(409);
+
+    const shipmentRes = await app.inject({
+      method: 'POST',
+      url: '/shipments',
+      payload: { loadId: load.id, operatorId: operator.id },
+    });
+    expect(shipmentRes.statusCode).toBe(201);
+
+    const fleet = await app.inject({ method: 'GET', url: '/admin/fleet' });
+    expect(fleet.statusCode).toBe(200);
+    const entry = fleet
+      .json()
+      .find((e: { operatorId: string }) => e.operatorId === operator.id);
+    expect(entry.truckPlate).toBe('AN-9001');
+    expect(entry.kycStatus).toBe('pending');
+    expect(entry.currentCity).toBe('Addis Ababa');
+    expect(entry.activeShipment.status).toBe('assigned');
+    expect(entry.activeShipment.origin).toBe('Addis Ababa');
+    expect(entry.activeShipment.destination).toBe('Jimma');
+  });
 });
 
 function failingAdapter(channel: 'telebirr' | 'cbe_birr'): PayoutAdapter {

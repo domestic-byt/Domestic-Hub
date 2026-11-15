@@ -1,5 +1,13 @@
 import { City, AdvanceChannel } from '@afro-link/shared';
 
+export interface TranscriptEntry {
+  role: 'user' | 'assistant';
+  content: string;
+  at: string;
+}
+
+export const MAX_TRANSCRIPT_ENTRIES = 50;
+
 export interface AgentMemoryState {
   lastLoadId?: string;
   lastShipmentId?: string;
@@ -9,6 +17,7 @@ export interface AgentMemoryState {
   lastWeightTons?: number;
   lastMoneyEtb?: number;
   lastChannel?: AdvanceChannel;
+  transcript?: TranscriptEntry[];
 }
 
 export interface AgentMemory {

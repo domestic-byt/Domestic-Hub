@@ -6,6 +6,7 @@ import { LANGUAGES, Lang, loadLang, saveLang, STRINGS, Strings } from './i18n';
 import { useVoiceInput } from './useVoiceInput';
 import type {
   AuditEntry,
+  FleetEntry,
   KycReview,
   Load,
   Webhook,
@@ -333,6 +334,16 @@ function ShipperPanel({ t }: { t: Strings }) {
     }
   }
 
+  async function acceptOffer(loadId: string) {
+    setError(null);
+    try {
+      await api.acceptOffer(loadId);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   async function rate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -438,6 +449,12 @@ function ShipperPanel({ t }: { t: Strings }) {
             <span>{load.offeredPriceEtb.toLocaleString()} ETB</span>
             <span className="muted">{load.id}</span>
           </div>
+          {load.counterOfferEtb !== undefined && load.status === 'open' && (
+            <div className="row">
+              <span>⤴ {load.counterOfferEtb.toLocaleString()} ETB</span>
+              <button onClick={() => acceptOffer(load.id)}>{t.acceptOffer}</button>
+            </div>
+          )}
           <div className="row">
             <button onClick={() => findMatches(load.id)}>{t.findMatches}</button>
             {load.status === 'open' && (
@@ -551,6 +568,8 @@ function DriverPanel({ t }: { t: Strings }) {
   const [dashOperator, setDashOperator] = useState('');
   const [dashboard, setDashboard] = useState<OperatorDashboard | null>(null);
   const [accepted, setAccepted] = useState<{ loadId: string; shipmentId: string } | null>(null);
+  const [counterForm, setCounterForm] = useState({ operatorId: '', loadId: '', priceEtb: 30000 });
+  const [counterSaved, setCounterSaved] = useState(false);
   const [docsForm, setDocsForm] = useState({
     operatorId: '',
     licenseNumber: '',
@@ -614,6 +633,23 @@ function DriverPanel({ t }: { t: Strings }) {
     setError(null);
     try {
       setReturnLoads(await api.getReturnLoads(returnOperator));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function submitCounter(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setCounterSaved(false);
+    try {
+      await api.counterOffer(
+        counterForm.loadId.trim(),
+        counterForm.operatorId,
+        Number(counterForm.priceEtb),
+      );
+      setCounterSaved(true);
+      setCounterForm({ operatorId: '', loadId: '', priceEtb: 30000 });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -887,6 +923,37 @@ function DriverPanel({ t }: { t: Strings }) {
         </label>
         <button type="submit">{t.requestBtn}</button>
       </form>
+
+      <h2>{t.counterHeading}</h2>
+      <form onSubmit={submitCounter} className="card row">
+        <label>
+          {t.operatorId}
+          <input
+            value={counterForm.operatorId}
+            onChange={(e) => setCounterForm({ ...counterForm, operatorId: e.target.value })}
+          />
+        </label>
+        <label>
+          {t.loads}
+          <input
+            value={counterForm.loadId}
+            onChange={(e) => setCounterForm({ ...counterForm, loadId: e.target.value })}
+          />
+        </label>
+        <label>
+          {t.amount}
+          <input
+            type="number"
+            min="1"
+            value={counterForm.priceEtb}
+            onChange={(e) => setCounterForm({ ...counterForm, priceEtb: Number(e.target.value) })}
+          />
+        </label>
+        <button type="submit" disabled={!counterForm.loadId || !counterForm.operatorId}>
+          {t.counterSubmit}
+        </button>
+      </form>
+      {counterSaved && <p className="auth-ok">{t.counterSaved}</p>}
 
       <h2>{t.returnTrips}</h2>
       <form onSubmit={findReturnLoads} className="card row">
@@ -1298,6 +1365,7 @@ function MetricsPanel({ t, setTab }: { t: Strings; setTab: (tab: Tab) => void })
 function KycPanel({ t }: { t: Strings }) {
   const [queue, setQueue] = useState<KycReview[] | null>(null);
   const [audit, setAudit] = useState<AuditEntry[] | null>(null);
+  const [fleet, setFleet] = useState<FleetEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -1307,6 +1375,10 @@ function KycPanel({ t }: { t: Strings }) {
     try {
       setQueue(await api.getKycQueue());
       setAudit(await api.getAuditLog());
+      api
+        .getFleet()
+        .then(setFleet)
+        .catch(() => setFleet(null));
     } catch (err) {
       setQueue(null);
       setError(err instanceof Error ? err.message : String(err));
@@ -1344,6 +1416,32 @@ function KycPanel({ t }: { t: Strings }) {
               {entry.detail ? ` · ${entry.detail}` : ''} ·{' '}
               {new Date(entry.at).toLocaleString()}
             </span>
+          </div>
+        ))}
+      <h2>{t.fleetHeading}</h2>
+      {fleet && fleet.length === 0 && <p className="muted">{t.fleetNoShipment}</p>}
+      {fleet &&
+        fleet.map((f) => (
+          <div className="card" key={f.operatorId}>
+            <div className="row spread">
+              <strong>{f.name}</strong>
+              <span className="muted">{f.kycStatus}</span>
+            </div>
+            <div className="row">
+              <span>🚚 {f.truckPlate}</span>
+              <span>{f.status}</span>
+              <span className="muted">{f.currentCity}</span>
+            </div>
+            <div className="row">
+              {f.activeShipment ? (
+                <span>
+                  📦 {f.activeShipment.origin} → {f.activeShipment.destination} ·{' '}
+                  {f.activeShipment.status}
+                </span>
+              ) : (
+                <span className="muted">{t.fleetNoShipment}</span>
+              )}
+            </div>
           </div>
         ))}
       <WebhooksSection t={t} />

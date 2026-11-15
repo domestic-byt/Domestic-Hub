@@ -215,6 +215,34 @@ export async function loadRoutes(app: FastifyInstance, store: MarketplaceStore) 
     return run(reply, () => store.rankReturnLoads(id));
   });
 
+  app.post('/loads/:id/counter-offer', async (request, reply) => {
+    if (guard(request, reply, 'operator', 'admin')) return;
+    const { id } = request.params as { id: string };
+    const body = request.body as { operatorId?: string; priceEtb?: unknown } | null;
+    const actor = request.actor;
+    const operatorId = actor?.role === 'operator' ? actor.subject : body?.operatorId;
+    if (!operatorId) {
+      return reply.code(400).send({ error: 'operatorId is required.' });
+    }
+    if (typeof body?.priceEtb !== 'number' || body.priceEtb <= 0) {
+      return reply.code(400).send({ error: 'priceEtb must be a positive number.' });
+    }
+    return run(reply, () => store.counterOffer(id, operatorId, body.priceEtb as number), 200);
+  });
+
+  app.post('/loads/:id/accept-offer', async (request, reply) => {
+    if (guard(request, reply, 'shipper', 'admin')) return;
+    const { id } = request.params as { id: string };
+    const actor = request.actor;
+    if (actor?.role === 'shipper') {
+      const load = await store.listLoads().then((loads) => loads.find((l) => l.id === id));
+      if (load && load.shipperId !== actor.subject) {
+        return reply.code(403).send({ error: 'You can only accept offers on your own loads.' });
+      }
+    }
+    return run(reply, () => store.acceptCounterOffer(id), 200);
+  });
+
   app.post('/loads/:id/cancel', async (request, reply) => {
     if (guard(request, reply, 'shipper', 'admin')) return;
     const { id } = request.params as { id: string };

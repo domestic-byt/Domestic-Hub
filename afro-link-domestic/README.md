@@ -33,6 +33,8 @@ The web app reads `VITE_API_BASE` at build time (defaults to `/api`, proxied in 
 | GET | `/health` | Liveness probe |
 | GET/POST | `/operators` | List / register truck operators |
 | GET/POST | `/loads` | List / post freight loads |
+| POST | `/loads/:id/counter-offer` | Operator counters the asking price on an open load (operator/admin); the offer is stored on the load until accepted |
+| POST | `/loads/:id/accept-offer` | Shipper accepts the counter offer \u2014 the load's price is updated to the offered amount and the offer cleared (shipper/admin; shippers only their own loads) |
 | POST | `/loads/:id/cancel` | Cancel an open/assigned load (shipper-owned or admin); frees the operator; blocked once delivered or with an active fuel advance |
 | GET | `/loads/:id/matches` | Ranked operator matches (deadhead + backhaul aware) |
 | GET/POST | `/shipments` | List / assign a load to an operator |
@@ -47,6 +49,7 @@ The web app reads `VITE_API_BASE` at build time (defaults to `/api`, proxied in 
 | POST | `/operators/:id/kyc` | Admin KYC decision (`pending`/`approved`/`rejected`) with optional license/insurance expiry updates (admin only) |
 | POST | `/operators/:id/kyc/documents` | Operator submits KYC documents (license number + expiry, insurance expiry, document URLs); resets the decision to `pending` for re-review (operator/admin; operators only their own) |
 | GET | `/admin/audit` | Admin audit log: who did what and when for KYC decisions, webhook deletions, delivery retries and payout retries (admin only) |
+| GET | `/admin/fleet` | Admin fleet overview: every truck with plate, availability status, current city, KYC status and its active shipment (admin only) |
 | GET | `/operators/:id/dashboard` | Driver landing card: current city, active shipment, active fuel advance, outstanding balance, net earnings and top return loads in one call (operator/admin only; operators see their own) |
 | GET | `/operators/:id/return-loads` | Backhaul suggestions: open loads near the operator's current location, ranked to cut empty return trips |
 | GET | `/operators/:id/earnings` | Driver earnings: delivered shipments, gross ETB, outstanding fuel advances, net (operator/admin only; operators see their own) |
@@ -147,6 +150,10 @@ Register an outbound webhook (`POST /webhooks` with `{url, events?, secret?}`) a
 **Delivery log**: every webhook attempt is persisted (`webhook_deliveries`, including the payload) with the response status or error and an attempt counter. Admins can inspect `GET /webhooks/:id/deliveries` and re-deliver a failed attempt with `POST /webhooks/deliveries/:id/retry` (up to the stored payload, freshly signed).
 
 **Document uploads & audit trail**: drivers submit KYC documents (license number, expiry dates, scanned-document URLs) from the Driver panel — any submission resets the operator to `pending` until an admin re-reviews. Admin actions (KYC decisions, webhook deletions, delivery retries, payout retries) are recorded in an append-only audit log, visible on the KYC tab and via `GET /admin/audit`.
+
+**Price negotiation & fleet overview**: operators counter-offer a price on open loads from the Driver panel (or by telling the agent "counter offer 35000 birr on load <id>"); shippers see the offer on their load cards and accept it with one tap (or "accept the offer for load <id>") to set the agreed price. The admin tab also shows a fleet overview \u2014 every registered truck with plate, availability, current city, KYC status and its active shipment.
+
+**Conversation transcripts**: every agent session keeps a rolling transcript (last 50 turns); "send me this conversation" returns the full user/agent exchange with timestamps for support records.
 
 **Webhooks admin panel**: the admin tab lists registered webhooks with a Deliveries view per hook — every attempt with status/error and attempt count, and a Retry button that re-delivers a failed attempt from the stored payload. Admins can also register a webhook directly from the panel (URL plus an event picker — leave all unchecked to subscribe to everything) and delete hooks they no longer need.
 

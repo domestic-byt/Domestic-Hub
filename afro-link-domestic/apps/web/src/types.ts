@@ -75,6 +75,8 @@ export interface Load {
   availableFrom: string;
   offeredPriceEtb: number;
   status: 'open' | 'assigned' | 'delivered' | 'cancelled';
+  counterOfferEtb?: number;
+  counterOfferBy?: string;
 }
 
 export interface OperatorMatch {
@@ -164,6 +166,21 @@ export interface PriceSuggestion {
   distanceKm: number;
   sampleSize: number;
   basis: 'lane' | 'network';
+}
+
+export interface FleetEntry {
+  operatorId: string;
+  name: string;
+  truckPlate: string;
+  status: string;
+  currentCity: string;
+  kycStatus: string;
+  activeShipment?: {
+    shipmentId: string;
+    status: string;
+    origin: string;
+    destination: string;
+  };
 }
 
 export interface OperatorDashboard {

@@ -117,6 +117,12 @@ describe('agent LLM fallback', () => {
     async cancelLoad(): Promise<never> {
       throw new Error('not used');
     }
+    async counterOffer(): Promise<never> {
+      throw new Error('not used');
+    }
+    async acceptCounterOffer(): Promise<never> {
+      throw new Error('not used');
+    }
     async capturePod(): Promise<never> {
       throw new Error('not used');
     }
