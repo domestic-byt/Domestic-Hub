@@ -54,9 +54,9 @@ export interface AgentStore {
   findShipment(shipmentId: string): Promise<Shipment | undefined>;
   findLatestShipment(): Promise<Shipment | undefined>;
   findLatestLoad(): Promise<Load | undefined>;
-  cancelLoad(loadId: string): Promise<Load>;
+  cancelLoad(loadId: string, shipperId?: string): Promise<Load>;
   counterOffer(loadId: string, operatorId: string, priceEtb: number): Promise<Load>;
-  acceptCounterOffer(loadId: string): Promise<Load>;
+  acceptCounterOffer(loadId: string, shipperId?: string): Promise<Load>;
   capturePod(
     shipmentId: string,
     receiverName: string,

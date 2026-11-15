@@ -246,9 +246,12 @@ class FakeStore implements AgentStore {
     return rating;
   }
 
-  async cancelLoad(loadId: string): Promise<Load> {
+  async cancelLoad(loadId: string, shipperId?: string): Promise<Load> {
     const load = this.loads.get(loadId);
     if (!load) throw new DomainError('not_found', 'Load not found.');
+    if (shipperId !== undefined && load.shipperId !== shipperId) {
+      throw new DomainError('conflict', 'You can only cancel your own loads.');
+    }
     if (load.status !== 'open' && load.status !== 'assigned') {
       throw new DomainError('conflict', `Load is ${load.status}, cannot cancel.`);
     }
@@ -273,9 +276,12 @@ class FakeStore implements AgentStore {
     return updated;
   }
 
-  async acceptCounterOffer(loadId: string): Promise<Load> {
+  async acceptCounterOffer(loadId: string, shipperId?: string): Promise<Load> {
     const load = this.loads.get(loadId);
     if (!load) throw new DomainError('not_found', 'Load not found.');
+    if (shipperId !== undefined && load.shipperId !== shipperId) {
+      throw new DomainError('conflict', 'You can only accept offers on your own loads.');
+    }
     if (load.counterOfferEtb === undefined) {
       throw new DomainError('conflict', 'No counter offer to accept.');
     }
@@ -929,6 +935,36 @@ describe('DomesticAgent', () => {
     const final = store.loads.get(load.id)!;
     expect(final.offeredPriceEtb).toBe(35000);
     expect(final.counterOfferEtb).toBeUndefined();
+  });
+
+  it('blocks shippers from cancelling or accepting offers on other shippers loads', async () => {
+    const store = seededStore();
+    const agent = new DomesticAgent(store);
+    const load = await store.createLoad({
+      shipperId: 'shipper-1',
+      origin: jimma,
+      destination: addis,
+      weightTons: 10,
+      offeredPriceEtb: 20000,
+    });
+    await store.counterOffer(load.id, 'op-near', 18000);
+
+    const cancelled = await agent.handle(`cancel load ${load.id}`, {
+      shipperId: 'shipper-other',
+    });
+    expect(cancelled.reply).toContain('only cancel your own loads');
+    expect(store.loads.get(load.id)?.status).toBe('open');
+
+    const accepted = await agent.handle(`accept the offer for load ${load.id}`, {
+      shipperId: 'shipper-other',
+    });
+    expect(accepted.reply).toContain('only accept offers on your own loads');
+    expect(store.loads.get(load.id)?.offeredPriceEtb).toBe(20000);
+
+    const ok = await agent.handle(`accept the offer for load ${load.id}`, {
+      shipperId: 'shipper-1',
+    });
+    expect(ok.reply).toContain('18000 ETB');
   });
 
   it('exports the conversation transcript on request', async () => {

@@ -193,8 +193,11 @@ export class MarketplaceStore implements AgentStore {
     return shipment;
   }
 
-  async cancelLoad(loadId: string): Promise<Load> {
+  async cancelLoad(loadId: string, shipperId?: string): Promise<Load> {
     const load = await this.getLoad(loadId);
+    if (shipperId !== undefined && load.shipperId !== shipperId) {
+      throw new DomainError('conflict', 'You can only cancel your own loads.');
+    }
     if (load.status === 'delivered') {
       throw new DomainError('conflict', 'Delivered loads cannot be cancelled.');
     }
@@ -717,8 +720,14 @@ export class MarketplaceStore implements AgentStore {
     return updated;
   }
 
-  async acceptCounterOffer(loadId: string): Promise<Load> {
+  async acceptCounterOffer(loadId: string, shipperId?: string): Promise<Load> {
     const load = await this.getLoad(loadId);
+    if (shipperId !== undefined && load.shipperId !== shipperId) {
+      throw new DomainError('conflict', 'You can only accept offers on your own loads.');
+    }
+    if (load.status !== 'open') {
+      throw new DomainError('conflict', `Load is ${load.status}, not open.`);
+    }
     if (load.counterOfferEtb === undefined) {
       throw new DomainError('conflict', 'No counter offer to accept.');
     }

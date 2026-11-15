@@ -102,7 +102,7 @@ export class DomesticAgent {
         case 'get_metrics':
           return await this.reportMetrics();
         case 'cancel_load':
-          return await this.cancelLoad(message, memory);
+          return await this.cancelLoad(message, ctx, memory);
         case 'capture_pod':
           return await this.capturePod(message, memory);
         case 'rate_shipment':
@@ -118,7 +118,7 @@ export class DomesticAgent {
         case 'counter_offer':
           return await this.counterOffer(message, ctx, memory);
         case 'accept_offer':
-          return await this.acceptOffer(message, memory);
+          return await this.acceptOffer(message, ctx, memory);
         case 'export_transcript':
           return this.exportTranscript(memory);
         case 'help':
@@ -440,7 +440,7 @@ export class DomesticAgent {
     };
   }
 
-  private async acceptOffer(message: string, memory: AgentMemoryState) {
+  private async acceptOffer(message: string, ctx: AgentContext, memory: AgentMemoryState) {
     const slots = extractSlots(message);
     const loadId = slots.ids[0] ?? memory.lastLoadId;
     if (!loadId) {
@@ -448,7 +448,7 @@ export class DomesticAgent {
         reply: 'Which load offer should I accept? Share the load id.',
       };
     }
-    const load = await this.store.acceptCounterOffer(loadId);
+    const load = await this.store.acceptCounterOffer(loadId, ctx.shipperId);
     memory.lastLoadId = load.id;
     return {
       reply: `Deal. Load ${load.id} is now priced at ${load.offeredPriceEtb} ETB.`,
@@ -470,7 +470,7 @@ export class DomesticAgent {
     };
   }
 
-  private async cancelLoad(message: string, memory: AgentMemoryState) {
+  private async cancelLoad(message: string, ctx: AgentContext, memory: AgentMemoryState) {
     const slots = extractSlots(message);
     const loadId = slots.ids[0] ?? memory.lastLoadId;
     if (!loadId) {
@@ -478,7 +478,7 @@ export class DomesticAgent {
         reply: 'Which load should I cancel? Share the load id, or post one first.',
       };
     }
-    const load = await this.store.cancelLoad(loadId);
+    const load = await this.store.cancelLoad(loadId, ctx.shipperId);
     memory.lastLoadId = load.id;
     return {
       reply: `Load ${load.id} cancelled. The truck is free again and can take return loads near its current location.`,

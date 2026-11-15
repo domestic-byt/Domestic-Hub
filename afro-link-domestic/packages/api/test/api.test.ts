@@ -1411,6 +1411,20 @@ describe('domestic ai agent endpoint', async () => {
     });
     expect(shipmentRes.statusCode).toBe(201);
 
+    const offerOnAssigned = await app.inject({
+      method: 'POST',
+      url: `/loads/${load.id}/counter-offer`,
+      payload: { operatorId: operator.id, priceEtb: 36000 },
+    });
+    expect(offerOnAssigned.statusCode).toBe(409);
+
+    const acceptOnAssigned = await app.inject({
+      method: 'POST',
+      url: `/loads/${load.id}/accept-offer`,
+      payload: {},
+    });
+    expect(acceptOnAssigned.statusCode).toBe(409);
+
     const etaRes = await app.inject({
       method: 'GET',
       url: `/shipments/${shipmentRes.json().id}/eta`,

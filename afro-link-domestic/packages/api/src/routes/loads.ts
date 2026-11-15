@@ -240,7 +240,11 @@ export async function loadRoutes(app: FastifyInstance, store: MarketplaceStore) 
         return reply.code(403).send({ error: 'You can only accept offers on your own loads.' });
       }
     }
-    return run(reply, () => store.acceptCounterOffer(id), 200);
+    return run(
+      reply,
+      () => store.acceptCounterOffer(id, actor?.role === 'shipper' ? actor.subject : undefined),
+      200,
+    );
   });
 
   app.post('/loads/:id/cancel', async (request, reply) => {
@@ -253,6 +257,10 @@ export async function loadRoutes(app: FastifyInstance, store: MarketplaceStore) 
         return reply.code(403).send({ error: 'You can only cancel your own loads.' });
       }
     }
-    return run(reply, () => store.cancelLoad(id), 200);
+    return run(
+      reply,
+      () => store.cancelLoad(id, actor?.role === 'shipper' ? actor.subject : undefined),
+      200,
+    );
   });
 }

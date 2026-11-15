@@ -141,6 +141,31 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 `;
 
+const MIGRATIONS = `
+ALTER TABLE operators ADD COLUMN IF NOT EXISTS license_expiry DATE;
+ALTER TABLE operators ADD COLUMN IF NOT EXISTS insurance_expiry DATE;
+ALTER TABLE operators ADD COLUMN IF NOT EXISTS kyc_decision TEXT;
+ALTER TABLE operators ADD COLUMN IF NOT EXISTS license_number TEXT;
+ALTER TABLE operators ADD COLUMN IF NOT EXISTS license_doc_url TEXT;
+ALTER TABLE operators ADD COLUMN IF NOT EXISTS insurance_doc_url TEXT;
+ALTER TABLE loads ADD COLUMN IF NOT EXISTS counter_offer_etb DOUBLE PRECISION;
+ALTER TABLE loads ADD COLUMN IF NOT EXISTS counter_offer_by TEXT;
+ALTER TABLE shipments ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
+ALTER TABLE shipments ADD COLUMN IF NOT EXISTS deadhead_km DOUBLE PRECISION;
+ALTER TABLE shipments ADD COLUMN IF NOT EXISTS pod JSONB;
+ALTER TABLE tracking_events ADD COLUMN IF NOT EXISTS location JSONB;
+ALTER TABLE tracking_events ADD COLUMN IF NOT EXISTS note TEXT;
+ALTER TABLE fuel_advances ADD COLUMN IF NOT EXISTS payout_reference TEXT;
+ALTER TABLE fuel_advances ADD COLUMN IF NOT EXISTS payout_attempts INTEGER;
+ALTER TABLE fuel_advances ADD COLUMN IF NOT EXISTS last_payout_error TEXT;
+ALTER TABLE ratings ADD COLUMN IF NOT EXISTS comment TEXT;
+ALTER TABLE webhooks ADD COLUMN IF NOT EXISTS owner_id TEXT;
+ALTER TABLE webhook_deliveries ADD COLUMN IF NOT EXISTS status_code INTEGER;
+ALTER TABLE webhook_deliveries ADD COLUMN IF NOT EXISTS error TEXT;
+ALTER TABLE webhook_deliveries ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
+ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS detail TEXT;
+`;
+
 function str(value: unknown): string {
   return value as string;
 }
@@ -302,6 +327,7 @@ export class PgRepo implements MarketplaceRepo {
 
   async initialize(): Promise<void> {
     await this.pool.query(SCHEMA);
+    await this.pool.query(MIGRATIONS);
   }
 
   async close(): Promise<void> {
